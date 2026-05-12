@@ -1,0 +1,186 @@
+/* Add course card — LARGE prominent version */
+.add-course-card-lg {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    min-height: 8rem;
+    border-radius: 0.75rem;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    text-decoration: none;
+    padding: 1.25rem;
+}
+
+html:not(.dark) .add-course-card-lg {
+    border: 2.5px dashed #d1d5db;
+    color: #9ca3af;
+    background-color: #fafafa;
+}
+
+html:not(.dark) .add-course-card-lg:hover {
+    border-color: #1A5C38;
+    color: #1A5C38;
+    background-color: rgba(26, 92, 56, 0.06);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(26, 92, 56, 0.12);
+}
+
+.dark .add-course-card-lg {
+    border: 2.5px dashed rgba(76, 175, 125, 0.25);
+    color: #6b7280;
+    background-color: rgba(255, 255, 255, 0.02);
+}
+
+.dark .add-course-card-lg:hover {
+    border-color: #4CAF7D;
+    color: #4CAF7D;
+    background-color: rgba(76, 175, 125, 0.08);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(76, 175, 125, 0.15);
+}
+
+.add-course-card-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    transition: all 0.25s ease;
+}
+
+html:not(.dark) .add-course-card-icon { background-color: #e5e7eb; }
+html:not(.dark) .add-course-card-lg:hover .add-course-card-icon { background-color: #1A5C38; color: #fff; }
+.dark .add-course-card-icon { background-color: rgba(255, 255, 255, 0.06); }
+.dark .add-course-card-lg:hover .add-course-card-icon { background-color: rgba(76, 175, 125, 0.2); color: #4CAF7D; }
+
+.add-course-card-text {
+    font-size: 0.8125rem;
+    font-weight: 600;
+}
+
+.add-course-card-hint {
+    font-size: 0.6875rem;
+    font-weight: 400;
+    opacity: 0.6;
+}
+
+/* Add course dropdown modal */
+.add-course-card-wrapper {
+    position: relative;
+}
+
+.add-course-dropdown {
+    position: absolute;
+    z-index: 50;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: 0.5rem;
+    border-radius: 0.75rem;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    min-width: 20rem;
+}
+
+.add-course-dropdown-centered {
+    position: relative;
+    margin-top: 0.75rem;
+    max-width: 28rem;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+html:not(.dark) .add-course-dropdown {
+    background-color: #fff;
+    border: 1px solid #e5e7eb;
+}
+
+.dark .add-course-dropdown {
+    background-color: #1f2937;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.add-course-dropdown-search {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 0.75rem;
+}
+
+html:not(.dark) .add-course-dropdown-search {
+    border-bottom: 1px solid #f3f4f6;
+}
+
+.dark .add-course-dropdown-search {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.add-course-search-input {
+    flex: 1;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-size: 0.8125rem;
+    padding: 0.25rem 0;
+}
+
+html:not(.dark) .add-course-search-input {
+    color: #111827;
+}
+
+html:not(.dark) .add-course-search-input::placeholder {
+    color: #9ca3af;
+}
+
+.dark .add-course-search-input {
+    color: #f3f4f6;
+}
+
+.dark .add-course-search-input::placeholder {
+    color: #6b7280;
+}
+
+.add-course-dropdown-list {
+    max-height: 15rem;
+    overflow-y: auto;
+    padding: 0.25rem;
+}
+
+.add-course-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border-radius: 0.5rem;
+    font-size: 0.75rem;
+    text-align: left;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+    border: none;
+    background: transparent;
+}
+
+html:not(.dark) .add-course-option {
+    color: #374151;
+}
+
+html:not(.dark) .add-course-option:hover {
+    background-color: #f3f4f6;
+}
+
+.dark .add-course-option {
+    color: #d1d5db;
+}
+
+.dark .add-course-option:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.add-course-option span {
+    font-size: inherit;
+}

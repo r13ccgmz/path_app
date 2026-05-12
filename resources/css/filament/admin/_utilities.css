@@ -1,0 +1,133 @@
+/* ──────────────────────────────────────────
+   PDF EXPORT BUTTON
+   ────────────────────────────────────────── */
+.export-pdf-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.5rem 0.875rem;
+    border-radius: 0.625rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    border: 1px solid transparent;
+    white-space: nowrap;
+}
+html:not(.dark) .export-pdf-btn {
+    background-color: #f3f4f6;
+    color: #374151;
+    border-color: #e5e7eb;
+}
+html:not(.dark) .export-pdf-btn:hover {
+    background-color: #1A5C38;
+    color: #fff;
+    border-color: #1A5C38;
+}
+.dark .export-pdf-btn {
+    background-color: rgba(255, 255, 255, 0.06);
+    color: #d1d5db;
+    border-color: rgba(255, 255, 255, 0.1);
+}
+.dark .export-pdf-btn:hover {
+    background-color: rgba(76, 175, 125, 0.2);
+    color: #4CAF7D;
+    border-color: #4CAF7D;
+}
+
+/* ──────────────────────────────────────────
+   EDITABLE REQUIREMENTS
+   ────────────────────────────────────────── */
+.req-action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.25rem;
+    border-radius: 0.25rem;
+    cursor: pointer;
+    border: none;
+    background: none;
+    opacity: 0;
+    transition: all 0.15s ease;
+}
+.overview-req-item:hover .req-action-btn { opacity: 1; }
+html:not(.dark) .req-action-btn { color: #9ca3af; }
+html:not(.dark) .req-action-btn:hover { color: #1A5C38; background-color: #f3f4f6; }
+html:not(.dark) .req-action-btn--danger:hover { color: #DC3545 !important; }
+.dark .req-action-btn { color: #6b7280; }
+.dark .req-action-btn:hover { color: #4CAF7D; background-color: rgba(255, 255, 255, 0.06); }
+.dark .req-action-btn--danger:hover { color: #FCA5A5 !important; }
+
+.req-edit-input {
+    flex: 1;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    border-radius: 0.375rem;
+    outline: none;
+    transition: border-color 0.15s ease;
+}
+html:not(.dark) .req-edit-input {
+    border: 1px solid #d1d5db;
+    color: #111827;
+    background-color: #fff;
+}
+html:not(.dark) .req-edit-input:focus { border-color: #1A5C38; box-shadow: 0 0 0 1px rgba(26, 92, 56, 0.2); }
+.dark .req-edit-input {
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #e5e7eb;
+    background-color: rgba(255, 255, 255, 0.04);
+}
+.dark .req-edit-input:focus { border-color: #4CAF7D; }
+
+.req-save-btn, .req-cancel-btn {
+    padding: 0.1875rem 0.625rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    border: none;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+}
+html:not(.dark) .req-save-btn { background-color: #1A5C38; color: #fff; }
+html:not(.dark) .req-save-btn:hover { background-color: #245660; }
+.dark .req-save-btn { background-color: rgba(76, 175, 125, 0.2); color: #4CAF7D; }
+.dark .req-save-btn:hover { background-color: rgba(76, 175, 125, 0.3); }
+
+html:not(.dark) .req-cancel-btn { background-color: #f3f4f6; color: #6b7280; }
+html:not(.dark) .req-cancel-btn:hover { background-color: #e5e7eb; }
+.dark .req-cancel-btn { background-color: rgba(255, 255, 255, 0.06); color: #9ca3af; }
+.dark .req-cancel-btn:hover { background-color: rgba(255, 255, 255, 0.1); }
+
+.overview-req-add {
+    padding: 0.375rem 0.625rem;
+}
+
+.req-add-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.25rem 0.625rem;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    border-radius: 0.375rem;
+    cursor: pointer;
+    border: 1px dashed transparent;
+    background: none;
+    transition: all 0.15s ease;
+}
+html:not(.dark) .req-add-btn { color: #9ca3af; border-color: #d1d5db; }
+html:not(.dark) .req-add-btn:hover { color: #1A5C38; border-color: #1A5C38; background-color: rgba(26, 92, 56, 0.04); }
+.dark .req-add-btn { color: #6b7280; border-color: rgba(255, 255, 255, 0.1); }
+.dark .req-add-btn:hover { color: #4CAF7D; border-color: #4CAF7D; background-color: rgba(76, 175, 125, 0.05); }
+
+/* ──────────────────────────────────────────
+   TOTAL STATS
+   ────────────────────────────────────────── */
+.overview-stat-total {
+    border-left: 2px solid;
+    margin-left: 0.25rem;
+    padding-left: 1.25rem;
+}
+html:not(.dark) .overview-stat-total { border-left-color: #e5e7eb; }
+.dark .overview-stat-total { border-left-color: rgba(255, 255, 255, 0.1); }

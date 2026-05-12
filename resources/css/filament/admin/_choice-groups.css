@@ -1,0 +1,122 @@
+/* Choice group â€” visual OR pairing for alternative courses */
+.choice-group {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    border-radius: 0.75rem;
+    overflow: hidden;
+}
+
+html:not(.dark) .choice-group {
+    border: 1.5px dashed #d97706;
+    background-color: rgba(251, 191, 36, 0.04);
+}
+
+.dark .choice-group {
+    border: 1.5px dashed rgba(251, 191, 36, 0.4);
+    background-color: rgba(251, 191, 36, 0.03);
+}
+
+.choice-group .compact-card {
+    flex: 1;
+    border: none;
+    border-left: 3px solid var(--card-accent, #1A5C38);
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
+.choice-group .compact-card:hover {
+    box-shadow: none;
+    transform: none;
+    background-color: rgba(255, 255, 255, 0.04);
+}
+
+.choice-divider {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 0.375rem;
+    flex-shrink: 0;
+}
+
+.choice-divider-or {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.choice-divider-line {
+    width: 1px;
+    height: 1.5rem;
+}
+
+html:not(.dark) .choice-divider-line {
+    background-color: #d97706;
+    opacity: 0.3;
+}
+
+.dark .choice-divider-line {
+    background-color: #fbbf24;
+    opacity: 0.25;
+}
+
+.choice-divider-text {
+    font-size: 0.625rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+html:not(.dark) .choice-divider-text {
+    color: #d97706;
+}
+
+.dark .choice-divider-text {
+    color: #fbbf24;
+}
+
+.choice-label {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.625rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-radius: 0.375rem 0.375rem 0 0;
+}
+
+html:not(.dark) .choice-label {
+    color: #d97706;
+    background-color: rgba(217, 119, 6, 0.08);
+}
+
+.dark .choice-label {
+    color: #fbbf24;
+    background-color: rgba(251, 191, 36, 0.06);
+}
+
+/* Choice group responsive */
+@media (max-width: 768px) {
+    .choice-group {
+        flex-direction: column;
+    }
+
+    .choice-divider {
+        padding: 0.25rem 0;
+        flex-direction: row;
+    }
+
+    .choice-divider-or {
+        flex-direction: row;
+    }
+
+    .choice-divider-line {
+        width: 1.5rem;
+        height: 1px;
+    }
+}

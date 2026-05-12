@@ -1,0 +1,170 @@
+/* ──────────────────────────────────────────
+   SIDEBAR
+   ────────────────────────────────────────── */
+/* Base rules for both modes */
+.fi-sidebar {
+    overflow: hidden !important;
+    /* Hide scrollbar */
+    -ms-overflow-style: none !important;
+    scrollbar-width: none !important;
+}
+
+.fi-sidebar::-webkit-scrollbar {
+    display: none !important;
+}
+
+html:not(.dark) .fi-sidebar {
+    background-color: #ffffff !important;
+    border-right: none !important;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.04) !important;
+}
+
+.dark .fi-sidebar {
+    background-color: #111827 !important; /* Slightly lighter/distinct from the main dark background */
+}
+
+/* Sidebar header — logo area */
+.fi-sidebar-header {
+    padding: 1.25rem 1rem !important;
+}
+html:not(.dark) .fi-sidebar-header {
+    background-color: #ffffff !important;
+    border-bottom: 1px solid #f3f4f6 !important;
+}
+
+/* Sidebar nav container */
+.fi-sidebar-nav {
+    padding: 0.25rem 0.5rem !important;
+    -ms-overflow-style: none !important;
+    scrollbar-width: none !important;
+}
+.fi-sidebar-nav::-webkit-scrollbar {
+    display: none !important;
+}
+html:not(.dark) .fi-sidebar-nav {
+    background-color: #ffffff !important;
+}
+
+/* ──────────────────────────────────────────
+   NAV ITEMS
+   ────────────────────────────────────────── */
+html:not(.dark) .fi-sidebar-item-label {
+    color: #374151 !important;
+    font-weight: 500 !important;
+}
+
+html:not(.dark) .fi-sidebar-item-btn > .fi-icon {
+    color: #6b7280 !important;
+}
+
+html:not(.dark) .fi-sidebar-item.fi-sidebar-item-has-url > .fi-sidebar-item-btn:hover {
+    background-color: #f3f4f6 !important;
+}
+
+html:not(.dark) .fi-sidebar-item.fi-sidebar-item-has-url > .fi-sidebar-item-btn:hover .fi-sidebar-item-label {
+    color: #1B4D3E !important;
+}
+
+html:not(.dark) .fi-sidebar-item.fi-sidebar-item-has-url > .fi-sidebar-item-btn:hover > .fi-icon {
+    color: #1A5C38 !important;
+}
+
+/* ACTIVE STATE */
+html:not(.dark) .fi-sidebar-item.fi-active > .fi-sidebar-item-btn {
+    background-color: #e5e7eb !important;
+    border-radius: 0.5rem !important;
+}
+
+html:not(.dark) .fi-sidebar-item.fi-active > .fi-sidebar-item-btn > .fi-sidebar-item-label {
+    color: #111827 !important;
+    font-weight: 600 !important;
+}
+
+html:not(.dark) .fi-sidebar-item.fi-active > .fi-sidebar-item-btn > .fi-icon {
+    color: #111827 !important;
+}
+
+html:not(.dark) .fi-sidebar-item.fi-active > .fi-sidebar-item-btn:hover {
+    background-color: #d1d5db !important;
+}
+
+html:not(.dark) .fi-sidebar-item.fi-active > .fi-sidebar-item-btn:hover > .fi-sidebar-item-label {
+    color: #111827 !important;
+}
+
+html:not(.dark) .fi-sidebar-item.fi-active > .fi-sidebar-item-btn:hover > .fi-icon {
+    color: #111827 !important;
+}
+
+/* GROUP LABELS */
+.fi-sidebar-group {
+    padding-top: 0.5rem !important;
+    margin-top: 0.25rem !important;
+}
+
+html:not(.dark) .fi-sidebar-group {
+    border-top: 1px solid #f3f4f6 !important;
+}
+
+.fi-sidebar-group:first-child {
+    border-top: none !important;
+    margin-top: 0 !important;
+}
+
+.fi-sidebar-group-label,
+.fi-sidebar-group-label span,
+.fi-sidebar-group-label button {
+    font-size: 0.65rem !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.1em !important;
+    text-transform: uppercase !important;
+}
+
+/* GROUP LABEL COLORS (light mode) */
+html:not(.dark) .fi-sidebar-group-label,
+html:not(.dark) .fi-sidebar-group-label span,
+html:not(.dark) .fi-sidebar-group-label button,
+html:not(.dark) .fi-sidebar-group-label svg {
+    color: #9ca3af !important;
+}
+
+/* SIDEBAR FOOTER */
+.fi-sidebar-footer {
+    padding: 0.75rem !important;
+}
+html:not(.dark) .fi-sidebar-footer {
+    background-color: #ffffff !important;
+    border-top: 1px solid #f3f4f6 !important;
+}
+
+/* Theme Switcher Overrides (Dividers) */
+.fi-theme-switcher {
+    display: none !important; /* Hiding natively, relying on custom top-navigation switch */
+}
+
+/* Override the internal grid layout of the theme switcher to use flex and remove gaps */
+.fi-theme-switcher > div {
+    display: flex !important;
+    gap: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+}
+
+.fi-theme-switcher-btn {
+    border-radius: 0 !important;
+    margin: 0 !important;
+    flex: 1 1 0% !important; /* Force equal width */
+    height: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+/* Apply border to the right side of all buttons except the last one */
+.fi-theme-switcher-btn:not(:last-child) {
+    border-right: 1px solid #e5e7eb !important;
+}
+
+.dark .fi-theme-switcher-btn:not(:last-child) {
+    border-right-color: rgba(255, 255, 255, 0.1) !important;
+}

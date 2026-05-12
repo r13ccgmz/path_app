@@ -1,0 +1,150 @@
+/* ──────────────────────────────────────────
+   REVAMPED PROGRAM SELECTOR
+   ────────────────────────────────────────── */
+.program-selector-btn {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.625rem 1rem;
+    border-radius: 0.75rem;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    border: 1px solid transparent;
+    background: none;
+    text-align: left;
+}
+
+html:not(.dark) .program-selector-btn {
+    background-color: #f9fafb;
+    border-color: #e5e7eb;
+    color: #111827;
+}
+html:not(.dark) .program-selector-btn:hover {
+    border-color: #1A5C38;
+    box-shadow: 0 0 0 1px rgba(26, 92, 56, 0.1);
+}
+.dark .program-selector-btn {
+    background-color: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.1);
+    color: #e5e7eb;
+}
+.dark .program-selector-btn:hover {
+    border-color: #4CAF7D;
+}
+
+.program-selector-code {
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 0.125rem 0.5rem;
+    border-radius: 0.375rem;
+    white-space: nowrap;
+}
+html:not(.dark) .program-selector-code { background-color: #1A5C38; color: #fff; }
+.dark .program-selector-code { background-color: rgba(76, 175, 125, 0.2); color: #4CAF7D; }
+
+.program-selector-name {
+    font-weight: 500;
+    flex: 1;
+    min-width: 0;
+}
+
+.program-selector-level {
+    font-size: 0.6875rem;
+    font-weight: 500;
+    padding: 0.0625rem 0.375rem;
+    border-radius: 9999px;
+    white-space: nowrap;
+    text-transform: capitalize;
+}
+html:not(.dark) .program-selector-level { background-color: #E0ECDE; color: #1a5a3d; }
+.dark .program-selector-level { background-color: rgba(76, 175, 125, 0.1); color: #4CAF7D; }
+
+.program-selector-units {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+html:not(.dark) .program-selector-units { color: #1A5C38; }
+.dark .program-selector-units { color: #4CAF7D; }
+
+.program-selector-dropdown {
+    position: absolute;
+    top: calc(100% + 0.25rem);
+    left: 0;
+    right: 0;
+    z-index: 50;
+    border-radius: 0.75rem;
+    overflow: hidden;
+    max-height: 22rem;
+}
+html:not(.dark) .program-selector-dropdown {
+    background-color: #fff;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.12);
+}
+.dark .program-selector-dropdown {
+    background-color: #1f2937;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+}
+
+.program-selector-search {
+    width: 100%;
+    padding: 0.5rem;
+    font-size: 0.8125rem;
+    border: none;
+    outline: none;
+    background: none;
+}
+html:not(.dark) .program-selector-search { color: #111827; }
+html:not(.dark) .program-selector-search::placeholder { color: #9ca3af; }
+.dark .program-selector-search { color: #e5e7eb; }
+.dark .program-selector-search::placeholder { color: #6b7280; }
+
+.program-selector-option {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8125rem;
+    cursor: pointer;
+    border: none;
+    background: none;
+    border-radius: 0.5rem;
+    transition: background-color 0.1s ease;
+    text-align: left;
+}
+html:not(.dark) .program-selector-option { color: #374151; }
+html:not(.dark) .program-selector-option:hover { background-color: #f3f4f6; }
+html:not(.dark) .program-selector-option--active { background-color: #e0ecde; }
+.dark .program-selector-option { color: #d1d5db; }
+.dark .program-selector-option:hover { background-color: rgba(255, 255, 255, 0.06); }
+.dark .program-selector-option--active { background-color: rgba(76, 175, 125, 0.15); }
+
+.program-selector-opt-code {
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    padding: 0.0625rem 0.375rem;
+    border-radius: 0.25rem;
+    white-space: nowrap;
+}
+html:not(.dark) .program-selector-opt-code { background-color: #f3f4f6; color: #1A5C38; }
+.dark .program-selector-opt-code { background-color: rgba(255, 255, 255, 0.06); color: #4CAF7D; }
+
+.program-selector-opt-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.program-selector-opt-level {
+    font-size: 0.625rem;
+    font-weight: 500;
+    padding: 0.0625rem 0.25rem;
+    border-radius: 0.25rem;
+    text-transform: capitalize;
+    white-space: nowrap;
+}
+html:not(.dark) .program-selector-opt-level { color: #9ca3af; }
+.dark .program-selector-opt-level { color: #6b7280; }

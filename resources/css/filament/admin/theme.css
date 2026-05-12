@@ -1,0 +1,30 @@
+@import '../../../../vendor/filament/filament/resources/css/theme.css';
+
+@source '../../../../app/Filament/**/*.php';
+@source '../../../../resources/views/**/*.blade.php';
+
+/* ── Partials (cascade order preserved) ── */
+@import './_topbar.css';
+@import './_sidebar.css';
+@import './_page-content.css';
+@import './_curriculum-map.css';
+@import './_program-overview.css';
+@import './_modals.css';
+@import './_view-mode.css';
+@import './_conditional-groups.css';
+@import './_curriculum-table.css';
+@import './_add-course.css';
+@import './_responsive.css';
+@import './_choice-groups.css';
+@import './_course-type-selector.css';
+@import './_dark-mode.css';
+@import './_program-selector.css';
+@import './_utilities.css';
+@import './_print.css';
+
+/* ── Filament Action Modal z-index fix ──
+   The sticky topbar has z-50, and Filament modals
+   can render behind it. Force modal overlays above. */
+.fi-modal {
+    z-index: 60 !important;
+}

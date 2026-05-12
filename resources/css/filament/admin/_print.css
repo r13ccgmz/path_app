@@ -1,0 +1,49 @@
+/* ──────────────────────────────────────────
+   PRINT STYLES (PDF EXPORT)
+   ────────────────────────────────────────── */
+@media print {
+    /* Hide non-essential UI elements */
+    .fi-sidebar,
+    .fi-topbar,
+    .fi-sidebar-close-overlay,
+    .add-program-btn,
+    .export-pdf-btn,
+    .view-mode-toggle,
+    .compact-actions,
+    .req-action-btn,
+    .req-add-btn,
+    .overview-req-add,
+    .add-course-dropdown,
+    .add-course-btn {
+        display: none !important;
+    }
+
+    /* Full width content */
+    .fi-main {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    /* Remove shadows and borders for clean print */
+    .program-overview-card,
+    .fi-section,
+    .compact-card {
+        box-shadow: none !important;
+        break-inside: avoid;
+    }
+
+    /* Ensure colors print */
+    * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+
+    .program-selector-btn {
+        border: none !important;
+        padding-left: 0 !important;
+    }
+
+    .program-selector-dropdown {
+        display: none !important;
+    }
+}

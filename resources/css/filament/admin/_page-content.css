@@ -1,0 +1,77 @@
+/* ──────────────────────────────────────────
+   PAGE CONTENT
+   ────────────────────────────────────────── */
+html:not(.dark) .fi-header-heading {
+    color: #1A5C38 !important;
+    font-weight: 700 !important;
+}
+
+.fi-wi-stats-overview-stat {
+    border-left: 4px solid #1A5C38 !important;
+    transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+}
+
+html:not(.dark) .fi-wi-stats-overview-stat:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 4px 12px rgba(26, 92, 56, 0.15) !important;
+}
+
+.dark .fi-wi-stats-overview-stat:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 4px 12px rgba(26, 92, 56, 0.4) !important;
+}
+
+.fi-btn-primary {
+    background-color: #1A5C38 !important;
+}
+
+.fi-btn-primary:hover {
+    background-color: #164a2d !important;
+}
+
+html:not(.dark) .fi-badge-success {
+    background-color: #CDE0C9 !important;
+    color: #1a5a3d !important;
+}
+
+html:not(.dark) .fi-ta-row:nth-child(even) {
+    background-color: #f8faf8 !important;
+}
+
+/* ── Page Entrance Transitions ── */
+/* NOTE: Removed 'animation' here because opacity animations with 'forwards' 
+   create a permanent stacking context that traps Filament's position:fixed modals 
+   behind the topbar. */
+.fi-page {
+    /* animation: pageEnter 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; */
+}
+
+/* ── Widget Card Stagger Entrance ── */
+.fi-wi {
+    animation: widgetFadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.fi-wi:nth-child(1) { animation-delay: 0.05s; }
+.fi-wi:nth-child(2) { animation-delay: 0.10s; }
+.fi-wi:nth-child(3) { animation-delay: 0.15s; }
+.fi-wi:nth-child(4) { animation-delay: 0.20s; }
+.fi-wi:nth-child(5) { animation-delay: 0.25s; }
+
+@keyframes widgetFadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+/* ── Table Row Hover ── */
+.fi-ta-row {
+    transition: background-color 0.15s ease !important;
+}
+
+/* ── Section Collapse/Expand ── */
+.fi-section-content {
+    transition: opacity 0.2s ease, max-height 0.3s ease;
+}

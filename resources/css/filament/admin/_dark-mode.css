@@ -1,0 +1,40 @@
+/* ──────────────────────────────────────────
+   DARK MODE IMPROVEMENTS
+   ────────────────────────────────────────── */
+
+/* Timeline nodes — glow ring in dark mode */
+.dark .timeline-node {
+    box-shadow: 0 0 0 3px rgba(76, 175, 125, 0.15), 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Compact cards — stronger border & bg in dark mode */
+.dark .compact-card {
+    background-color: rgba(255, 255, 255, 0.05) !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.dark .compact-card:hover {
+    background-color: rgba(255, 255, 255, 0.08) !important;
+    border-color: rgba(255, 255, 255, 0.15) !important;
+}
+
+/* Phase headers — more visible in dark */
+.dark .phase-header {
+    background-color: rgba(255, 255, 255, 0.04) !important;
+    border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+/* Code pills — brighter in dark mode */
+.dark .compact-code-pill {
+    opacity: 0.9;
+}
+
+/* Timeline connector — more visible */
+.dark .timeline-phase::before {
+    opacity: 0.4;
+}
+
+/* Requirements toggle — contrast */
+.dark .overview-requirements-toggle {
+    color: #e5e7eb !important;
+}

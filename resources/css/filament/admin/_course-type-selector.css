@@ -1,0 +1,68 @@
+/* ──────────────────────────────────────────
+   COURSE TYPE SELECTOR (inside add-course dropdown)
+   ────────────────────────────────────────── */
+.add-course-type-selector {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.625rem 0.75rem;
+}
+
+html:not(.dark) .add-course-type-selector {
+    border-bottom: 1px solid #f3f4f6;
+}
+
+.dark .add-course-type-selector {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.add-course-type-label {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    margin-right: 0.25rem;
+}
+
+html:not(.dark) .add-course-type-label { color: #6b7280; }
+.dark .add-course-type-label { color: #9ca3af; }
+
+.add-course-type-btn {
+    padding: 0.1875rem 0.5rem;
+    border-radius: 9999px;
+    font-size: 0.625rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    border: 1px solid transparent;
+    background: none;
+}
+
+html:not(.dark) .add-course-type-btn {
+    color: #6b7280;
+    border-color: #e5e7eb;
+}
+
+html:not(.dark) .add-course-type-btn:hover {
+    background-color: #f3f4f6;
+}
+
+html:not(.dark) .add-course-type-btn--active {
+    background-color: #1A5C38 !important;
+    color: #fff !important;
+    border-color: #1A5C38 !important;
+}
+
+.dark .add-course-type-btn {
+    color: #9ca3af;
+    border-color: rgba(255, 255, 255, 0.1);
+}
+
+.dark .add-course-type-btn:hover {
+    background-color: rgba(255, 255, 255, 0.06);
+}
+
+.dark .add-course-type-btn--active {
+    background-color: rgba(76, 175, 125, 0.2) !important;
+    color: #4CAF7D !important;
+    border-color: #4CAF7D !important;
+}
