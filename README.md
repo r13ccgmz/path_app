@@ -1,8 +1,10 @@
-# TaPa — Talaang Pang-Akademiko
+# PATH — Progress and Academic Tracking Hub
 
 **Graduate Academic Records System** for the College of Public Affairs and Development (CPAf), UPLB.
 
 Built with **Laravel 12 · Filament v5.3 · Livewire v4 · Tailwind CSS v4 · MySQL 8.0+**
+
+> **v1.75** — Faculty Workload · Graduation Threshold Settings · Student Status Sync · Activity Log with Revert · RBAC Enforcement · User Manual
 
 ---
 
@@ -66,18 +68,18 @@ Open XAMPP Control Panel and start **MySQL** (Apache is optional — we use `php
 
 ### 2. Create the Database
 
-Open phpMyAdmin at [http://localhost/phpmyadmin](http://localhost/phpmyadmin) and create a database named `tapa_db` with `utf8mb4_unicode_ci` collation.
+Open phpMyAdmin at [http://localhost/phpmyadmin](http://localhost/phpmyadmin) and create a database named `path_db` with `utf8mb4_unicode_ci` collation.
 
 Or via command line:
 
 ```bash
-mysql -u root -e "CREATE DATABASE IF NOT EXISTS tapa_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+mysql -u root -e "CREATE DATABASE IF NOT EXISTS path_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 ```
 
 ### 3. Configure Environment
 
 ```bash
-cd tapa-app
+cd path_app
 copy .env.example .env
 ```
 
@@ -87,7 +89,7 @@ Edit `.env` and set the database connection:
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
 DB_PORT=3306
-DB_DATABASE=tapa_db
+DB_DATABASE=path_db
 DB_USERNAME=root
 DB_PASSWORD=
 ```
@@ -116,7 +118,7 @@ This creates 25+ tables and seeds: 5 units, 9 programs, 17 specializations, 158 
 
 ### 7. Build the frontend and start the server
 
-Open **3 terminals** from the `tapa-app/` directory:
+Open **2 terminals** from the `path_app/` directory:
 
 **Terminal 1** — Vite dev server (live CSS/JS reloading):
 ```bash
@@ -129,9 +131,9 @@ npm run build
 php artisan serve
 ```
 
-**Terminal 3** — Optimize Laravel (optional, improves performance):
+Or use the all-in-one dev script (runs server, queue, logs, and Vite concurrently):
 ```bash
-php artisan optimize
+composer dev
 ```
 
 Visit **http://127.0.0.1:8000/admin** to access the admin panel.
@@ -152,9 +154,10 @@ Visit **http://127.0.0.1:8000/admin** to access the admin panel.
 ### Daily Development
 
 ```bash
-npm run dev             # Terminal 1: Vite dev server for live reload
-npm run build           # Build production assets
-php artisan serve       # Start Laravel server at localhost:8000
+composer dev                # All-in-one: server + queue + logs + vite
+npm run dev                 # Terminal 1: Vite dev server for live reload
+npm run build               # Build production assets
+php artisan serve           # Start Laravel server at localhost:8000
 ```
 
 ### Database
@@ -169,8 +172,25 @@ php artisan db:seed --class=CsvCourseSeeder  # Seed specific seeder
 ### Filament / Shield
 
 ```bash
-php artisan shield:generate --all     # Regenerate all permissions
+php artisan shield:generate --all     # Regenerate all permissions for resources & pages
 php artisan shield:super-admin        # Set the super-admin user
+php artisan shield:install            # Initial setup of Shield tables and Super Admin
+```
+
+### Activity Log
+
+```bash
+php artisan activitylog:clean         # Clean old activity log entries (> 365 days)
+```
+
+### Data Management
+
+```bash
+php artisan app:populate-students     # Import enrollee data into students table
+php artisan app:populate-enrollments  # Build student enrollment records
+php artisan app:normalize-data        # Run normalization rules on existing data
+php artisan app:merge-duplicates      # Merge duplicate student records
+php artisan app:sync-statuses         # Sync student statuses based on activity
 ```
 
 ### Caching & Optimization
@@ -194,23 +214,47 @@ php artisan pail             # Real-time log viewer
 ## Project Structure
 
 ```
-TaPa/
-├── tapa-app/              ← Laravel 12 + Filament v5.3 application
+PATH v1.75/
+├── path_app/                     ← Laravel 12 + Filament v5.3 application
 │   ├── app/
-│   │   ├── Enums/         # DegreeLevel, CourseType, SemesterPeriod
+│   │   ├── Console/Commands/     # 8 Artisan commands (data sync, normalization, etc.)
+│   │   ├── Enums/                # AcademicRank, CommitteeRole, CourseType, DegreeLevel, SemesterPeriod
+│   │   ├── Exports/              # 5 Excel exports + 6 sheet classes
+│   │   │   └── Sheets/           # Per-sheet exports for student summary workbook
 │   │   ├── Filament/
-│   │   │   ├── Resources/ # AcademicYear, CognateField, Course, Program, Unit
-│   │   │   ├── Pages/     # CurriculumMap, Students, Faculty, etc.
-│   │   │   └── Widgets/   # StatsOverviewWidget
-│   │   └── Models/        # 12 Eloquent models
+│   │   │   ├── Pages/            # 14 custom pages (Dashboard, CurriculumMap, FacultyWorkload,
+│   │   │   │   │                 #   ListOfGraduates, MentorshipMonitoring, Normalizations,
+│   │   │   │   │                 #   PotentialGraduates, Settings, StudentHistory, UserManual, etc.)
+│   │   │   │   ├── Auth/         # Custom auth pages
+│   │   │   │   ├── Concerns/     # HasAcademicOutputForm (shared trait)
+│   │   │   │   └── StudentHistory/  # 10 trait files (HasStudentTable, HasExportActions, etc.)
+│   │   │   ├── Resources/        # 8 resources: ActivityLog, DegreeAbbreviation, Enrollee,
+│   │   │   │                     #   Faculty, ImportLog, MilestoneTemplate, Student, User
+│   │   │   │                     #   + 6 simple resources: AcademicYears, CognateFields,
+│   │   │   │                     #   Courses, Programs, Roles, Units
+│   │   │   └── Widgets/          # 22 widgets (stats, charts, tables)
+│   │   │       └── Concerns/     # HasTermRangeFilter (shared trait)
+│   │   ├── Http/Controllers/     # (empty — Filament handles all routing)
+│   │   ├── Imports/              # 2 Excel imports (Enrollee, Graduate)
+│   │   ├── Models/               # 30 Eloquent models (LogsActivity on 7 key models)
+│   │   ├── Providers/Filament/   # AdminPanelProvider (panel configuration)
+│   │   ├── Services/             # GraduateMatchService, ProgramMatcher, StudentSyncService
+│   │   └── Support/              # NameNormalizer, SemesterNormalizer
+│   ├── config/                   # 14 config files (activitylog, dompdf, filament-shield, etc.)
 │   ├── database/
-│   │   ├── migrations/    # 19 migration files (25+ tables)
-│   │   └── seeders/       # 12 seeders (real reference data from CSV)
-│   └── resources/         # Blade views & CSS theme
-├── docs/                  # DBML schema + database documentation
-├── data/                  # Source CSV files (courses, requirements, specializations)
-├── agent_files/           # AI agent context & design documents
-└── .agents/workflows/     # Reusable automation workflows
+│   │   ├── migrations/           # 68 migration files
+│   │   └── seeders/              # 16 seeders (units, programs, courses, faculty, etc.)
+│   ├── lang/                     # Localization files
+│   ├── resources/
+│   │   ├── css/                  # App CSS + Filament admin theme
+│   │   ├── js/                   # App JS (bootstrap)
+│   │   └── views/                # Blade templates (pages, widgets, PDFs)
+│   ├── routes/                   # Web & console routes
+│   ├── storage/                  # Logs, cache, uploads
+│   └── tests/                    # PHPUnit test suite
+├── data/                         # Source CSV files (courses, semesters, faculty, graduates)
+├── docs/                         # DBML schema + backend architecture documentation
+└── path_db.sql                   # Database dump (backup/restore)
 ```
 
 ---
@@ -225,12 +269,12 @@ TaPa/
 | Reactivity | Livewire | v4 |
 | Frontend JS | Alpine.js | v3 |
 | CSS | Tailwind CSS | v4 |
+| Build | Vite | v7 |
 | Database | MySQL | 8.0+ (XAMPP) |
 | RBAC | Filament Shield | spatie/laravel-permission |
 | Import/Export | Laravel Excel | 3.1.x |
 | PDF | barryvdh/laravel-dompdf | 3.1+ |
 | Audit Trail | spatie/laravel-activitylog | 4.12+ |
-| Settings | spatie/laravel-settings | 3.7+ |
 
 ---
 
@@ -264,7 +308,29 @@ Make sure `npm run dev` is running in a separate terminal. The Vite dev server m
 
 1. Ensure XAMPP MySQL is running
 2. Check `.env` has `DB_HOST=127.0.0.1` and `DB_PORT=3306`
-3. Verify the `tapa_db` database exists
+3. Verify the `path_db` database exists
+
+---
+
+## Features
+
+### Faculty Workload (v1.75)
+Track course teaching workload per faculty member per semester/term code. Summary stat bar shows total offerings, unique faculty teaching, average per faculty, and faculty with no courses. Filter by semester and unit.
+
+### Graduation Candidate Threshold (v1.75)
+Configurable percentage threshold (50–100%) in **System → Settings → Graduation Settings**. Students at or above this completion percentage are flagged as candidates for graduation on the Student Progress page. Default: 100%.
+
+### Student Status Sync (v1.75)
+Automatic student inactivity detection. Configure the number of semesters without enrollment before a student is marked inactive (or AWOL, On Leave). One-click "Sync Now" action in **System → Settings → Student Status Sync**.
+
+### Activity Log & Audit Trail (v1.75)
+Powered by `spatie/laravel-activitylog`. Tracks all changes to Students, Faculty, Users, Committee Members, Academic Outputs, and System Settings. Browse the full log under **System → Activity Log** with filters by user, action type, and record type. Supports **one-click revert** of `updated` changes.
+
+### Role-Based Access Control (v1.75)
+Full RBAC enforcement via `filament-shield`. All pages and resources are protected by permission checks. Roles: Super Admin, Admin, Secretary, Panel User. Manage in **Users → Roles & Permissions**.
+
+### User Manual (v1.75)
+Comprehensive in-app documentation under **System → User Manual**. Covers all features with collapsible accordion sections.
 
 ---
 
@@ -274,4 +340,7 @@ Make sure `npm run dev` is running in a separate terminal. The Vite dev server m
 - **Queue driver** is set to `database`
 - Keep `APP_DEBUG=true` during development
 - Use `php artisan optimize:clear` if you encounter unexpected caching issues
-- See `agent_files/lessons.md` for documented Filament v5.3 pitfalls and solutions
+- **Audit Trail** logs changes on 7 models: Student, Faculty, User, StudentCommitteeMember, AcademicOutput, SystemSetting
+- **RBAC** policies are auto-generated via `php artisan shield:generate --all`
+- See `docs/backend.md` for full backend architecture documentation
+- See `docs/schema.dbml` for the complete database schema

@@ -6,6 +6,7 @@ use App\Models\Faculty;
 use App\Models\Graduate;
 use App\Models\GraduateCommitteeMember;
 use App\Models\ImportLog;
+use App\Models\NormalizationRule;
 use App\Models\Program;
 use App\Models\ProgramMajor;
 use App\Support\NameNormalizer;
@@ -25,10 +26,27 @@ class GraduateImport implements ToModel, WithHeadingRow
     protected array $facultyLookup = [];
     protected array $recordActions = []; // Per-record tracking
 
+    /** @var array<string, string> Loaded from DB: uppercase from_value => to_value */
+    protected array $degreeMap = [];
+
+    /** @var array<string, string> Loaded from DB: lowercase from_value => to_value */
+    protected array $majorFieldMap = [];
+
     public function __construct(?string $filename = null)
     {
         $this->filename = $filename;
         $this->buildFacultyLookup();
+
+        // Load normalization rules from DB
+        $degreeRules = NormalizationRule::getMap('degree');
+        foreach ($degreeRules as $from => $to) {
+            $this->degreeMap[strtoupper(trim($from))] = $to;
+        }
+
+        $majorFieldRules = NormalizationRule::getMap('major_field');
+        foreach ($majorFieldRules as $from => $to) {
+            $this->majorFieldMap[strtolower(trim($from))] = $to;
+        }
     }
 
     private function clean(?string $value): string
@@ -73,6 +91,12 @@ class GraduateImport implements ToModel, WithHeadingRow
         // Clean the raw major field (title case for readability)
         $rawMajorField = $this->clean($row['major_field'] ?? $row['major field'] ?? '');
         $normalizedMajorField = NameNormalizer::normalize($rawMajorField);
+
+        // Apply major_field normalization rules from DB
+        $majorLowerKey = strtolower(trim($normalizedMajorField));
+        if (isset($this->majorFieldMap[$majorLowerKey])) {
+            $normalizedMajorField = $this->majorFieldMap[$majorLowerKey];
+        }
 
         // Resolve CSV degree + major field → system Program
         $resolved = $this->resolveProgram($csvDegree, $normalizedMajorField);
@@ -157,12 +181,20 @@ class GraduateImport implements ToModel, WithHeadingRow
         foreach ($members as $member) {
             $facultyMatch = $this->findFacultyMatch($member['name']);
 
+            // Infer term from the graduate's semester_graduated
+            $semesterId = null;
+            if (!empty($data['semester_graduated'])) {
+                $semesterId = \App\Models\Semester::where('term_code', $data['semester_graduated'])->value('id');
+            }
+
             GraduateCommitteeMember::create([
                 'graduate_id' => $graduate->id,
                 'faculty_id' => $facultyMatch?->id,
                 'name' => $member['name'],
                 'role' => $member['role'],
                 'match_type' => $facultyMatch ? 'auto' : null,
+                'term_start_id' => $semesterId,
+                'term_end_id' => $semesterId,
             ]);
         }
     }
@@ -475,13 +507,21 @@ class GraduateImport implements ToModel, WithHeadingRow
 
     /**
      * Normalize CSV degree abbreviation.
+     * Checks DB-driven normalization rules first, falls back to hardcoded mappings.
      */
     private function normalizeDegree(string $degree): string
     {
         if ($degree === '') return '';
 
         $upper = strtoupper(trim($degree));
-        return match ($upper) {
+
+        // 1. Check DB-driven rules first (highest priority)
+        if (isset($this->degreeMap[$upper])) {
+            return $this->degreeMap[$upper];
+        }
+
+        // 2. Hardcoded fallback for common abbreviations
+        $normalized = match ($upper) {
             'PHD', 'PH.D', 'PH.D.', 'DOCTOR OF PHILOSOPHY' => 'PhD',
             'MS', 'M.S', 'M.S.' => 'MS',
             'MA', 'M.A', 'M.A.' => 'MA',
@@ -491,7 +531,20 @@ class GraduateImport implements ToModel, WithHeadingRow
             'MDMG' => 'MDMG',
             'DMG' => 'MDMG',
             'DPA' => 'DPA',
-            default => $degree,
+            default => null,
         };
+
+        if ($normalized !== null && $normalized !== $degree) {
+            // Auto-store the mapping so it appears in the Normalization Rules page
+            NormalizationRule::firstOrCreate(
+                ['type' => 'degree', 'from_value' => $degree],
+                ['to_value' => $normalized]
+            );
+            // Cache it for subsequent rows in this import
+            $this->degreeMap[$upper] = $normalized;
+            return $normalized;
+        }
+
+        return $degree;
     }
 }

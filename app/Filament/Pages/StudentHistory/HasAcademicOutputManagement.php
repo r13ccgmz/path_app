@@ -143,6 +143,8 @@ trait HasAcademicOutputManagement
 
     public function saveAo(): void
     {
+        abort_if(auth()->user()?->hasRole('viewer'), 403, 'Unauthorized action.');
+
         $student = $this->getStudentRecord();
         if (!$student || empty($this->aoTitle)) return;
 
@@ -230,6 +232,8 @@ trait HasAcademicOutputManagement
 
     public function deleteAo(): void
     {
+        abort_if(auth()->user()?->hasRole('viewer'), 403, 'Unauthorized action.');
+
         $student = $this->getStudentRecord();
         if (!$student || !$this->deletingAoId) return;
 

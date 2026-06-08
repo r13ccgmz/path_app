@@ -21,7 +21,7 @@ class DegreeAbbreviationResource extends Resource
 
     protected static bool $shouldRegisterNavigation = false;
 
-    protected static ?int $navigationSort = 5;
+    protected static ?int $navigationSort = 6;
 
 
     protected static ?string $navigationLabel = 'Degree Mapping';
@@ -83,12 +83,14 @@ class DegreeAbbreviationResource extends Resource
                             ->success()
                             ->duration(3000)
                             ->send();
-                    }),
+                    })
+                    ->visible(fn () => !auth()->user()->hasRole('viewer')),
                 Action::make('delete')
                     ->icon('heroicon-o-trash')
                     ->color('danger')
                     ->requiresConfirmation()
-                    ->action(fn (DegreeAbbreviation $record) => $record->delete()),
+                    ->action(fn (DegreeAbbreviation $record) => $record->delete())
+                    ->visible(fn () => !auth()->user()->hasRole('viewer')),
             ]);
     }
 
@@ -97,5 +99,10 @@ class DegreeAbbreviationResource extends Resource
         return [
             'index' => \App\Filament\Resources\DegreeAbbreviationResource\Pages\ListDegreeAbbreviations::route('/'),
         ];
+    }
+
+    public static function canCreate(): bool
+    {
+        return false;
     }
 }

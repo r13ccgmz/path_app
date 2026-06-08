@@ -5,6 +5,7 @@ namespace App\Filament\Resources\AcademicYears\Tables;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
+use Filament\Actions\CreateAction;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
@@ -14,6 +15,7 @@ class AcademicYearsTable
     public static function configure(Table $table): Table
     {
         return $table
+            ->heading('Academic Years')
             ->columns([
                 TextColumn::make('year_start')
                     ->label('Start')
@@ -53,12 +55,25 @@ class AcademicYearsTable
             ])
             ->defaultSort('year_start', 'desc')
             ->recordActions([
-                EditAction::make(),
+                EditAction::make()
+                    ->modalHeading(fn ($record) => "Edit Academic Year: AY {$record->year_start}-{$record->year_end}")
+                    ->modalWidth('4xl')
+                    ->after(fn ($livewire) => $livewire->dispatch('refreshAcademicYearsPage'))
+                    ->visible(fn () => !auth()->user()->hasRole('viewer')),
+            ])
+            ->recordAction(fn () => auth()->user()->hasRole('viewer') ? null : 'edit')
+            ->headerActions([
+                CreateAction::make()
+                    ->label('New Academic Year')
+                    ->modalHeading('Create Academic Year')
+                    ->modalWidth('4xl')
+                    ->after(fn ($livewire) => $livewire->dispatch('refreshAcademicYearsPage'))
+                    ->visible(fn () => !auth()->user()->hasRole('viewer')),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
                     DeleteBulkAction::make(),
-                ]),
+                ])->visible(fn () => !auth()->user()->hasRole('viewer')),
             ]);
     }
 }

@@ -53,6 +53,12 @@
                         </div>
 
                         @if ($this->getSelectedProgram())
+                            {{-- Edit Program Settings --}}
+                            <button wire:click="mountAction('editProgramSettings')" class="cm-header-btn" title="Edit Program Settings">
+                                <x-heroicon-o-cog-6-tooth class="h-4 w-4" />
+                                <span>Settings</span>
+                            </button>
+
                             {{-- PDF Export --}}
                             <button wire:click="downloadPdf" wire:loading.attr="disabled" class="export-pdf-btn" title="Export as PDF">
                                 <svg wire:loading.remove wire:target="downloadPdf" class="h-4.5 w-4.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
@@ -85,7 +91,6 @@
                 $totalStat = collect($typeStats)->firstWhere('type', '__total__');
                 $totalMinUnits = collect($typeStats)->where('type', '!=', '__total__')->sum('min_units');
                 $totalRequired = $totalStat['min_units'] ?? null;
-                $hasOverride = $totalStat['has_override'] ?? false;
             @endphp
             <div class="program-overview-card">
                 {{-- Stats Pill Strip --}}
@@ -96,82 +101,39 @@
                                 @continue
                             @endif
                             <div class="stats-pill" style="--pill-color: {{ $stat['color'] }};"
-                                 wire:key="stats-pill-{{ $this->selectedProgramId }}-{{ $stat['type'] }}"
-                                 x-data="{ editing: false, value: '{{ $stat['min_units'] ?? '' }}' }">
+                                 wire:key="stats-pill-{{ $this->selectedProgramId }}-{{ $stat['type'] }}">
                                 <div class="stats-pill-color" style="background-color: {{ $stat['color'] }};"></div>
                                 <span class="stats-pill-label">{{ $stat['type'] }} Courses</span>
                                 <div class="stats-pill-value">
-                                    <template x-if="!editing">
-                                        <span class="stats-pill-min" @click="editing = true" title="Click to edit">
-                                            @if ($stat['min_units'])
-                                                — minimum of <strong>{{ $stat['min_units'] }}</strong> {{ Str::plural('unit', $stat['min_units']) }}
-                                            @else
-                                                <span class="stats-pill-unset">— click to set min</span>
-                                            @endif
-                                            <svg class="stats-pill-edit-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Z" /></svg>
-                                        </span>
-                                    </template>
-                                    <template x-if="editing">
-                                        <span class="stats-pill-editor">
-                                            —
-                                            <input type="number" x-model="value" min="0" max="999"
-                                                   class="stats-pill-input"
-                                                   @keydown.enter="editing = false; $wire.updateMinUnits('{{ $stat['type'] }}', parseInt(value) || null)"
-                                                   @keydown.escape="editing = false"
-                                                   x-init="$nextTick(() => $el.focus())" />
-                                            units
-                                            <button @click="editing = false; $wire.updateMinUnits('{{ $stat['type'] }}', parseInt(value) || null)"
-                                                    class="stats-pill-save">✓</button>
-                                            <button @click="editing = false" class="stats-pill-cancel">✕</button>
-                                        </span>
-                                    </template>
+                                    <span class="stats-pill-min">
+                                        @if ($stat['min_units'])
+                                            — minimum of <strong>{{ $stat['min_units'] }}</strong> {{ Str::plural('unit', $stat['min_units']) }}
+                                        @endif
+                                    </span>
                                 </div>
                             </div>
                         @endforeach
-                        {{-- Total Pill (editable override) --}}
+                        {{-- Total Pill (read-only) --}}
                         <div class="stats-pill stats-pill--total" style="--pill-color: #1A5C38;"
-                             wire:key="stats-pill-{{ $this->selectedProgramId }}-total"
-                             x-data="{ editing: false, value: '{{ $totalRequired ?? '' }}' }">
+                             wire:key="stats-pill-{{ $this->selectedProgramId }}-total">
                             <div class="stats-pill-color" style="background-color: #1A5C38;"></div>
                             <span class="stats-pill-label">Total Required</span>
                             <div class="stats-pill-value text-white">
-                                <template x-if="!editing">
-                                    <span class="stats-pill-min flex items-center gap-1 px-1.5 py-0.5 rounded transition cursor-pointer" @click="editing = true" title="Click to set manual override">
-                                        @if ($totalRequired || $totalMinUnits)
-                                            <strong>({{ $totalRequired ?? $totalMinUnits }} units)</strong>
-                                            @if ($hasOverride)
-                                                <span class="text-xs opacity-70" title="Manually overridden">✎</span>
-                                            @endif
-                                        @else
-                                            <span class="stats-pill-unset">(click to set)</span>
-                                        @endif
-                                        <svg class="stats-pill-edit-icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.832 19.82a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Z" /></svg>
-                                    </span>
-                                </template>
-                                <template x-if="editing">
-                                    <span class="stats-pill-editor">
-                                        —
-                                        <input type="number" x-model="value" min="0" max="999"
-                                               class="stats-pill-input"
-                                               @keydown.enter="editing = false; $wire.updateTotalOverride(parseInt(value) || null)"
-                                               @keydown.escape="editing = false"
-                                               x-init="$nextTick(() => $el.focus())" />
-                                        units
-                                        <button @click="editing = false; $wire.updateTotalOverride(parseInt(value) || null)"
-                                                class="stats-pill-save">✓</button>
-                                        <button @click="editing = false" class="stats-pill-cancel">✕</button>
-                                        @if ($hasOverride)
-                                            <button @click="editing = false; value = ''; $wire.updateTotalOverride(null)" class="stats-pill-cancel" title="Clear override (revert to auto-sum)">↺</button>
-                                        @endif
-                                    </span>
-                                </template>
+                                <span class="stats-pill-min">
+                                    @if ($totalRequired || $totalMinUnits)
+                                        <strong>({{ $totalRequired ?? $totalMinUnits }} units)</strong>
+                                    @else
+                                        <span class="stats-pill-unset">(not set)</span>
+                                    @endif
+                                </span>
                             </div>
                         </div>
+
                     </div>
                 @endif
 
-                {{-- Requirements Row (collapsible + editable) --}}
-                <div x-data="{ expanded: false, adding: false, newText: '' }" class="overview-requirements">
+                {{-- Requirements Row (collapsible, read-only) --}}
+                <div x-data="{ expanded: false }" class="overview-requirements">
                     <button @click="expanded = !expanded" class="overview-requirements-toggle">
                         <div class="flex items-center gap-2">
                             <x-filament::icon icon="heroicon-o-clipboard-document-check" class="h-4 w-4 opacity-60" />
@@ -184,47 +146,15 @@
                     </button>
                     <div x-show="expanded" x-collapse x-cloak class="overview-requirements-list">
                         @forelse ($requirements as $idx => $req)
-                            <div class="overview-req-item" wire:key="req-item-{{ $req->id }}" x-data="{ editing: false, text: @js($req->requirement_text) }">
+                            <div class="overview-req-item" wire:key="req-item-{{ $req->id }}">
                                 <span class="overview-req-badge">{{ $idx + 1 }}</span>
-                                <template x-if="!editing">
-                                    <div class="flex items-center gap-2 flex-1 min-w-0">
-                                        <span class="flex-1">{{ $req->requirement_text }}</span>
-                                        <button @click="editing = true" class="req-action-btn" title="Edit">
-                                            <svg class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"/></svg>
-                                        </button>
-                                        <button @click="if(confirm('Delete this requirement?')) $wire.call('deleteRequirement', {{ $req->id }})" class="req-action-btn req-action-btn--danger" title="Delete">
-                                            <svg class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/></svg>
-                                        </button>
-                                    </div>
-                                </template>
-                                <template x-if="editing">
-                                    <div class="flex items-center gap-2 flex-1">
-                                        <input type="text" x-model="text" class="req-edit-input" @keydown.enter="$wire.call('updateRequirement', {{ $req->id }}, text); editing = false" @keydown.escape="editing = false" />
-                                        <button @click="$wire.call('updateRequirement', {{ $req->id }}, text); editing = false" class="req-save-btn">Save</button>
-                                        <button @click="editing = false" class="req-cancel-btn">Cancel</button>
-                                    </div>
-                                </template>
+                                <div class="flex items-center gap-2 flex-1 min-w-0">
+                                    <span class="flex-1">{{ $req->requirement_text }}</span>
+                                </div>
                             </div>
                         @empty
-                            <div class="text-sm text-gray-500 dark:text-gray-400 py-2 px-3">No requirements defined yet.</div>
+                            <div class="text-sm text-gray-500 dark:text-gray-400 py-2 px-3">No requirements defined yet. Click Settings to add.</div>
                         @endforelse
-
-                        {{-- Add Requirement --}}
-                        <div class="overview-req-add">
-                            <template x-if="!adding">
-                                <button @click="adding = true; $nextTick(() => $refs.newReqInput?.focus())" class="req-add-btn">
-                                    <svg class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
-                                    Add Requirement
-                                </button>
-                            </template>
-                            <template x-if="adding">
-                                <div class="flex items-center gap-2 w-full">
-                                    <input x-ref="newReqInput" type="text" x-model="newText" placeholder="Enter requirement text..." class="req-edit-input" @keydown.enter="if(newText.trim()) { $wire.call('addRequirement', newText.trim()); newText = ''; adding = false; }" @keydown.escape="adding = false; newText = ''" />
-                                    <button @click="if(newText.trim()) { $wire.call('addRequirement', newText.trim()); newText = ''; adding = false; }" class="req-save-btn">Add</button>
-                                    <button @click="adding = false; newText = ''" class="req-cancel-btn">Cancel</button>
-                                </div>
-                            </template>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -233,7 +163,7 @@
         {{-- ═══ Curriculum Display ═══ --}}
         @if ($this->selectedProgramId)
             @php $curriculum = $this->getCurriculum(); @endphp
-            <div wire:key="curriculum-viewport-{{ $this->selectedProgramId }}" x-data="{ search: '', selectedType: 'core' }" class="curriculum-viewport" wire:loading.class="opacity-50 pointer-events-none" wire:target="selectedProgramId,addCourseMapping,removeCourseMapping">
+            <div wire:key="curriculum-viewport-{{ $this->selectedProgramId }}" x-data="{ search: '', selectedType: 'core' }" @program-switched.window="search = ''; selectedType = 'core'" @curriculum-updated.window="search = ''" class="curriculum-viewport" wire:loading.class="opacity-50 pointer-events-none" wire:target="selectedProgramId,addCourseMapping,removeCourseMapping">
                 @if (empty($curriculum))
                 <x-filament::section wire:key="curriculum-empty-{{ $this->selectedProgramId }}">
                     <div class="py-12 text-center">
@@ -242,46 +172,16 @@
                         </div>
                         <h3 class="mt-3 text-sm font-semibold text-gray-900 dark:text-white">No courses mapped</h3>
                         <p class="mt-1 text-sm text-gray-500">This program has no courses assigned to its curriculum yet.</p>
-                        <div class="mt-4" wire:key="empty-add-course-{{ $this->selectedProgramId }}" x-data="{ open: false }">
-                            <button @click="open = !open; $nextTick(() => { if(open) $refs.emptySearchInput.focus() })" class="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-500 transition">
+                        <div class="mt-4">
+                            <button
+                                wire:click="mountAction('addCourseMapping')"
+                                class="inline-flex items-center gap-1.5 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-primary-500 transition"
+                            >
                                 <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                                 </svg>
                                 Add Courses to Curriculum
                             </button>
-                            <div x-show="open" x-cloak x-transition @click.outside="open = false" @keydown.escape.window="open = false" class="add-course-dropdown add-course-dropdown-centered">
-                                <div class="add-course-type-selector">
-                                    <label class="add-course-type-label">Add as:</label>
-                                    @foreach (\App\Enums\CourseType::cases() as $ct)
-                                        <button
-                                            @click="selectedType = '{{ $ct->value }}'"
-                                            :class="selectedType === '{{ $ct->value }}' ? 'add-course-type-btn--active' : ''"
-                                            class="add-course-type-btn"
-                                        >{{ $ct->label() }}</button>
-                                    @endforeach
-                                </div>
-                                <div class="add-course-dropdown-search">
-                                    <svg class="h-4 w-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
-                                    </svg>
-                                    <input x-ref="emptySearchInput" x-model="search" type="text" placeholder="Search courses..." class="add-course-search-input" />
-                                </div>
-                                <div class="add-course-dropdown-list">
-                                    @foreach ($availableCourses as $availCourse)
-                                        <button
-                                            wire:key="empty-opt-{{ $this->selectedProgramId }}-{{ $availCourse['id'] }}"
-                                            x-show="search === '' || '{{ strtolower($availCourse['label']) }}'.includes(search.toLowerCase())"
-                                            @click="$wire.call('addCourseMapping', {{ $availCourse['id'] }}, selectedType); open = false; search = ''"
-                                            class="add-course-option"
-                                        >
-                                            <span>{{ $availCourse['label'] }}</span>
-                                            <svg class="h-4 w-4 shrink-0 text-primary-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                                            </svg>
-                                        </button>
-                                    @endforeach
-                                </div>
-                            </div>
                         </div>
                     </div>
                 </x-filament::section>
@@ -300,13 +200,14 @@
                                     <th>Units</th>
                                     <th>Semester</th>
                                     <th>Prerequisite</th>
+                                    <th>Notes</th>
                                     <th class="text-center">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 @foreach ($bySemester as $semester => $courses)
                                     <tr class="curriculum-table-group-row">
-                                        <td colspan="7">
+                                        <td colspan="8">
                                             <span class="curriculum-table-group-label">{{ $semester }}</span>
                                             <span class="curriculum-table-group-count">{{ count($courses) }} {{ Str::plural('course', count($courses)) }}</span>
                                         </td>
@@ -337,13 +238,14 @@
                                             <td class="text-center font-medium">{{ $course['units'] ?? '—' }}</td>
                                             <td class="text-xs text-gray-500 dark:text-gray-400">{{ $course['semester'] ?? '—' }}</td>
                                             <td class="text-xs text-gray-500 dark:text-gray-400">{{ $course['prerequisite'] ?? '—' }}</td>
+                                            <td class="text-xs text-gray-500 dark:text-gray-400 italic">{{ $course['notes'] ?? '—' }}</td>
                                             <td class="text-center">
                                                 <div class="flex items-center justify-center gap-1">
-                                                    <a href="{{ $this->getEditCourseUrl($course['course_id']) }}" class="table-action-btn" title="Edit">
+                                                    <button x-on:click="$wire.set('editingMappingId', {{ $course['mapping_id'] }}); $nextTick(() => $wire.mountAction('editCourseMapping'))" class="table-action-btn" title="Edit">
                                                         <svg class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                                                             <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"/>
                                                         </svg>
-                                                    </a>
+                                                    </button>
                                                     <button wire:click="removeCourseMapping({{ $course['mapping_id'] }})" wire:confirm="Remove this course from the program curriculum?" class="table-action-btn table-action-btn--danger" title="Remove">
                                                         <svg class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                                                             <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0"/>
@@ -418,35 +320,11 @@
                                     <span class="rounded-full px-2.5 py-0.5 font-medium" style="background-color: {{ $phaseColor }}15; color: {{ $phaseColor }};">
                                         {{ $typeTotal }} {{ Str::plural('course', $typeTotal) }}
                                     </span>
-                                    <div wire:key="min-units-{{ $this->selectedProgramId }}-{{ $courseType }}-{{ $typeMinUnits ?? 'null' }}" x-data="{ editing: false, units: {{ $typeMinUnits ?? 'null' }} }" class="inline-flex">
-                                        <template x-if="!editing">
-                                            <button @click="editing = true"
-                                                class="min-units-badge"
-                                                :class="{ 'min-units-badge--empty': units === null }"
-                                                :title="units ? 'Click to edit' : 'Click to set minimum units'"
-                                            >
-                                                <template x-if="units !== null">
-                                                    <span>min <span x-text="units"></span> units required</span>
-                                                </template>
-                                                <template x-if="units === null">
-                                                    <span>+ set min units</span>
-                                                </template>
-                                            </button>
-                                        </template>
-                                        <template x-if="editing">
-                                            <div class="min-units-edit">
-                                                <input type="number" x-ref="minInput" x-model.number="units"
-                                                    min="0" max="999" placeholder="0"
-                                                    class="min-units-input"
-                                                    @keydown.enter="editing = false; $wire.call('updateMinUnits', '{{ $courseType }}', units)"
-                                                    @keydown.escape="editing = false"
-                                                    @blur="editing = false; $wire.call('updateMinUnits', '{{ $courseType }}', units)"
-                                                    x-init="$nextTick(() => $refs.minInput?.focus())"
-                                                >
-                                                <span class="min-units-suffix">units</span>
-                                            </div>
-                                        </template>
-                                    </div>
+                                    @if ($typeMinUnits)
+                                        <span class="min-units-badge" style="background-color: {{ $phaseColor }}10; color: {{ $phaseColor }};">
+                                            min {{ $typeMinUnits }} units required
+                                        </span>
+                                    @endif
                                 </div>
                             </div>
 
@@ -517,9 +395,13 @@
                                             </div>
                                         @endif
 
-                                        {{-- Add Course Card (LARGER + with type selector) --}}
-                                        <div wire:key="add-course-card-{{ $this->selectedProgramId }}-{{ $courseType }}" x-data="{ open: false, search: '', selectedType: '{{ strtolower(str_replace(['/', ' '], ['_', '_'], $courseType)) }}' }" class="add-course-card-wrapper">
-                                            <button @click="open = !open; $nextTick(() => { if(open) $refs.searchInput.focus() })" class="add-course-card-lg" title="Add a course to {{ $displayLabel }}">
+                                        {{-- Add Course Button (opens modal) --}}
+                                        <div class="add-course-card-wrapper">
+                                            <button
+                                                x-on:click="$wire.set('addCourseDefaultType', '{{ strtolower(str_replace(['/', ' '], ['_', '_'], $courseType)) }}'); $nextTick(() => $wire.mountAction('addCourseMapping'))"
+                                                class="add-course-card-lg"
+                                                title="Add a course to {{ $displayLabel }}"
+                                            >
                                                 <div class="add-course-card-icon">
                                                     <svg class="h-6 w-6" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
                                                         <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -528,40 +410,6 @@
                                                 <span class="add-course-card-text">Add Course</span>
                                                 <span class="add-course-card-hint">Click to browse available courses</span>
                                             </button>
-                                            <div x-show="open" x-cloak x-transition @click.outside="open = false" @keydown.escape.window="open = false" class="add-course-dropdown">
-                                                {{-- Course type selector --}}
-                                                <div class="add-course-type-selector">
-                                                    <label class="add-course-type-label">Add as:</label>
-                                                    @foreach (\App\Enums\CourseType::cases() as $ct)
-                                                        <button
-                                                            @click="selectedType = '{{ $ct->value }}'"
-                                                            :class="selectedType === '{{ $ct->value }}' ? 'add-course-type-btn--active' : ''"
-                                                            class="add-course-type-btn"
-                                                        >{{ $ct->label() }}</button>
-                                                    @endforeach
-                                                </div>
-                                                <div class="add-course-dropdown-search">
-                                                    <svg class="h-4 w-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
-                                                    </svg>
-                                                    <input x-ref="searchInput" x-model="search" type="text" placeholder="Search courses..." class="add-course-search-input" />
-                                                </div>
-                                                <div class="add-course-dropdown-list">
-                                                    @foreach ($availableCourses as $availCourse)
-                                                        <button
-                                                            wire:key="timeline-opt-{{ $this->selectedProgramId }}-{{ md5($courseType) }}-{{ $availCourse['id'] }}"
-                                                            x-show="search === '' || '{{ strtolower($availCourse['label']) }}'.includes(search.toLowerCase())"
-                                                            @click="$wire.call('addCourseMapping', {{ $availCourse['id'] }}, selectedType); open = false; search = ''"
-                                                            class="add-course-option"
-                                                        >
-                                                            <span>{{ $availCourse['label'] }}</span>
-                                                            <svg class="h-4 w-4 shrink-0 text-primary-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                                                                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-                                                            </svg>
-                                                        </button>
-                                                    @endforeach
-                                                </div>
-                                            </div>
                                         </div>
                                     </div>
                                 @endforeach
@@ -584,4 +432,6 @@
             </x-filament::section>
         @endif
     </div>
+
+    <x-filament-actions::modals />
 </x-filament-panels::page>

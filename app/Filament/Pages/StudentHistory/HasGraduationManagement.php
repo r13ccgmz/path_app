@@ -15,6 +15,8 @@ trait HasGraduationManagement
      */
     public function startEditGraduation(int $id): void
     {
+        abort_if(auth()->user()?->hasRole('viewer'), 403, 'Unauthorized action.');
+
         $this->editingGraduateId = $id;
         $this->mountAction('editGraduateInfo');
     }
@@ -25,6 +27,8 @@ trait HasGraduationManagement
      */
     public function startDeleteGraduation(int $id): void
     {
+        abort_if(auth()->user()?->hasRole('viewer'), 403, 'Unauthorized action.');
+
         $this->editingGraduateId = $id;
         $this->mountAction('deleteGraduateInfo');
     }

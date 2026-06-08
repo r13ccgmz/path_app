@@ -6,16 +6,19 @@ use App\Enums\DegreeLevel;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 class Program extends Model
 {
+    use LogsActivity;
+
     protected $fillable = [
         'code',
         'name',
         'description',
         'degree_level',
         'total_units_required',
-        'total_units_override',
         'min_units_per_type',
         'max_residency_years',
         'is_active',
@@ -28,6 +31,17 @@ class Program extends Model
             'min_units_per_type' => 'array',
             'is_active' => 'boolean',
         ];
+    }
+
+    // ── Activity Log ──
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logFillable()
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->setDescriptionForEvent(fn(string $eventName) => "Program record {$eventName}");
     }
 
     // ── Relationships ──
@@ -50,7 +64,7 @@ class Program extends Model
     public function courses(): BelongsToMany
     {
         return $this->belongsToMany(Course::class, 'program_courses')
-            ->withPivot('program_major_id', 'cognate_field_id', 'applies_to_all_majors', 'year_level', 'semester_recommended', 'is_required')
+            ->withPivot('program_major_id', 'cognate_field_id', 'applies_to_all_majors', 'semester_recommended', 'is_required')
             ->withTimestamps();
     }
 }

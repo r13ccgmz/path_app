@@ -146,6 +146,15 @@ trait HasAcademicOutputForm
                         ->preload()
                         ->placeholder('Select semester...')
                         ->helperText('Associate this output with a specific semester/term.'),
+                    Forms\Components\TagsInput::make('keywords')
+                        ->label('Keywords')
+                        ->placeholder('Add keyword...')
+                        ->columnSpanFull(),
+                    Forms\Components\Textarea::make('abstract')
+                        ->label('Abstract')
+                        ->placeholder('Enter the abstract here...')
+                        ->rows(5)
+                        ->columnSpanFull(),
                 ])->columns(2),
             \Filament\Schemas\Components\Section::make('Dates')
                 ->schema([
@@ -171,79 +180,76 @@ trait HasAcademicOutputForm
                             'failed' => 'Failed',
                         ])
                         ->placeholder('—'),
-                ])->columns(2)->collapsible(),
+                ])->columns(2)->collapsible()->collapsed(),
             \Filament\Schemas\Components\Section::make('Advisory Committee')
+                ->collapsible()
+                ->collapsed()
                 ->schema([
                     Forms\Components\Repeater::make('committee_members')
                         ->label('Committee Members')
                         ->hiddenLabel()
                         ->schema([
-                            Forms\Components\Select::make('role')
-                                ->label('Role')
-                                ->options([
-                                    'Chair' => 'Chair',
-                                    'Co-Chair' => 'Co-Chair',
-                                    'Cognate' => 'Cognate',
-                                    'Major' => 'Major',
-                                    'Minor' => 'Minor',
-                                    'Member' => 'Member',
-                                    'Adviser' => 'Adviser',
-                                    'Co-Adviser' => 'Co-Adviser',
-                                ])
-                                ->required(),
-                            $this->buildFacultySelect('name', 'Name')
-                                ->required(),
-                            Forms\Components\DatePicker::make('appointed_date')
-                                ->label('Appointed Date'),
+                            \Filament\Schemas\Components\Group::make([
+                                Forms\Components\Select::make('role')
+                                    ->label('Role')
+                                    ->options([
+                                                'Adviser' => 'Adviser',
+                                                'Co-Adviser' => 'Co-Adviser',
+                                                'Former Adviser' => 'Former Adviser',
+                                                'Chair' => 'Chair',
+                                                'Co-Chair' => 'Co-Chair',
+                                                'Cognate' => 'Cognate',
+                                                'Major' => 'Major',
+                                                'Minor' => 'Minor',
+                                                'Member' => 'Member',
+                                            ])
+                                    ->required()
+                                    ->columnSpan(1),
+                                $this->buildFacultyIdSelect('faculty_id', 'Faculty Name')
+                                    ->required()
+                                    ->columnSpan(2),
+                                Forms\Components\DatePicker::make('appointed_date')
+                                    ->label('Date Appointed')
+                                    ->columnSpan(1),
+                            ])->columns(4),
+                            \Filament\Schemas\Components\Group::make([
+                                $this->buildTermSelect('term_start', 'Term Start')
+                                    ->dehydrated(true)
+                                    ->columnSpan(1),
+                                $this->buildTermSelect('term_end', 'Term End')
+                                    ->dehydrated(true)
+                                    ->columnSpan(1),
+                            ])->columns(2),
                         ])
-                        ->columns(2)
+                        ->columns(1)
                         ->columnSpanFull()
                         ->addActionLabel('Add Committee Member')
                         ->reorderable(false)
                         ->default(fn() => [
-                            ['role' => 'Adviser', 'name' => ''],
+                            ['role' => 'Adviser', 'faculty_id' => null],
                         ]),
-                ])->collapsible(),
+                ]),
         ];
     }
 
-    private function buildFacultySelect(string $name, string $label): Forms\Components\Select
-    {
-        return Forms\Components\Select::make($name)
-            ->label($label)
-            ->options(function () {
-                return Faculty::orderBy('last_name')
-                    ->get()
-                    ->mapWithKeys(fn ($f) => [
-                        $f->full_name => $f->full_name . ($f->designation ? " ({$f->designation})" : ''),
-                    ])
-                    ->toArray();
-            })
-            ->searchable()
-            ->placeholder('Select from faculty or type name...')
-            ->createOptionForm([
-                Forms\Components\TextInput::make('custom_name')
-                    ->label('Name (not in faculty list)')
-                    ->required()
-                    ->maxLength(255),
-            ])
-            ->createOptionUsing(function (array $data): string {
-                return $data['custom_name'];
-            })
-            ->getOptionLabelUsing(fn ($value) => $value);
-    }
+
 
     protected function saveCommitteeMembers(\App\Models\AcademicOutput $ao, array $data): void
     {
         $ao->committeeMembers()->delete();
         if (!empty($data['committee_members'])) {
             foreach ($data['committee_members'] as $cm) {
-                if (!empty(trim($cm['name'] ?? ''))) {
+                $facultyId = $cm['faculty_id'] ?? null;
+                if ($facultyId) {
+                    $faculty = \App\Models\Faculty::find($facultyId);
                     AcademicOutputCommittee::create([
                         'academic_output_id' => $ao->id,
-                        'name' => trim($cm['name']),
+                        'faculty_id' => $facultyId,
+                        'name' => $faculty ? $faculty->full_name : '',
                         'role' => $cm['role'],
                         'appointed_date' => $cm['appointed_date'] ?? null,
+                        'term_start_id' => $cm['term_start'] ?? null,
+                        'term_end_id' => $cm['term_end'] ?? null,
                     ]);
                 }
             }
@@ -401,8 +407,10 @@ trait HasAcademicOutputForm
                     
                     $arguments['committee_members'] = $record->committeeMembers->map(fn($cm) => [
                         'role' => $cm->role,
-                        'name' => $cm->name,
+                        'faculty_id' => $cm->faculty_id,
                         'appointed_date' => $cm->appointed_date?->format('Y-m-d'),
+                        'term_start' => $cm->term_start_id ?? null,
+                        'term_end' => $cm->term_end_id ?? null,
                     ])->toArray();
                     
                     return $arguments;
@@ -410,7 +418,8 @@ trait HasAcademicOutputForm
                 ->using(function (array $data, \App\Models\AcademicOutput $record): \App\Models\AcademicOutput {
                     $aoData = collect($data)->only([
                         'student_id', 'semester_id', 'title', 'type', 'type_other_description', 'drive_link', 'status', 
-                        'proposal_defense_date', 'proposal_defense_result', 'final_defense_date', 'final_defense_result', 'date_submitted'
+                        'proposal_defense_date', 'proposal_defense_result', 'final_defense_date', 'final_defense_result', 'date_submitted',
+                        'keywords', 'abstract'
                     ])->toArray();
 
                     // Auto-sync term_code from selected semester
@@ -442,7 +451,7 @@ trait HasAcademicOutputForm
                     
                     return $record;
                 })
-                ->modalWidth('3xl')
+                ->modalWidth('4xl')
                 ->modalHeading('Edit Academic Output'),
             \Filament\Actions\DeleteAction::make(),
         ];

@@ -51,13 +51,26 @@
                         <x-heroicon-o-academic-cap class="w-6 h-6 text-gray-400" />
                         Enrollment History
                     </h3>
+                    @if (auth()->user()->can('Update:Student'))
                     <div>
                         {{ $this->getAction('addProgramEnrollment') }}
                     </div>
+                    @endif
                 </div>
                 {{ $this->table }}
             </div>
         @else
+            {{-- Filter Form --}}
+            <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-white/10 rounded-xl p-5 shadow-sm mb-6">
+                {{ $this->filtersForm }}
+            </div>
+
+            {{-- Overview & Demographics Widgets --}}
+            <div class="grid grid-cols-1 gap-6 mb-6">
+                @livewire(\App\Filament\Widgets\DashboardStudentOverviewWidget::class, ['pageFilters' => $this->filters], key('overview-widget-' . data_get($this->filters, 'filterFrom', 'all') . '-' . data_get($this->filters, 'filterTo', 'all')))
+                @livewire(\App\Filament\Widgets\DashboardStudentDemographicsChartsWidget::class, ['pageFilters' => $this->filters], key('demographics-widget-' . data_get($this->filters, 'filterFrom', 'all') . '-' . data_get($this->filters, 'filterTo', 'all')))
+            </div>
+
             {{-- All Students Table (default view) --}}
             @include('filament.pages.partials._student-list-guide')
         @endif

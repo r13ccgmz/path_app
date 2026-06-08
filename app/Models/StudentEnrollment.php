@@ -4,9 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 class StudentEnrollment extends Model
 {
+    use LogsActivity;
+
     protected $fillable = [
         'student_id',
         'student_program_id',
@@ -28,6 +32,17 @@ class StudentEnrollment extends Model
             'grade_numeric' => 'decimal:2',
             'units_earned' => 'integer',
         ];
+    }
+
+    // ── Activity Log ──
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logFillable()
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->setDescriptionForEvent(fn(string $eventName) => "Student enrollment {$eventName}");
     }
 
     // ── Relationships ──

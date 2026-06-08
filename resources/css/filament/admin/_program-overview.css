@@ -58,6 +58,32 @@ html:not(.dark) .stats-pill--total {
     border-color: rgba(76, 175, 125, 0.4);
 }
 
+/* Settings action pill */
+.stats-pill--action {
+    cursor: pointer;
+    gap: 0.25rem;
+    padding: 0.25rem 0.75rem;
+    opacity: 0.7;
+    transition: opacity 0.15s ease, background-color 0.15s ease;
+}
+.stats-pill--action:hover { opacity: 1; }
+html:not(.dark) .stats-pill--action {
+    background-color: #f3f4f6;
+    border: 1px solid #e5e7eb;
+    color: #4b5563;
+}
+html:not(.dark) .stats-pill--action:hover {
+    background-color: #e5e7eb;
+}
+.dark .stats-pill--action {
+    background-color: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: #d1d5db;
+}
+.dark .stats-pill--action:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+}
+
 .stats-pill-color {
     width: 0.375rem;
     height: 0.375rem;
@@ -87,21 +113,10 @@ html:not(.dark) .stats-pill-value strong { color: #111827; }
 .dark .stats-pill-value strong { color: #f9fafb; }
 
 .stats-pill-min {
-    cursor: pointer;
     display: inline-flex;
     align-items: center;
     gap: 0.125rem;
-    transition: opacity 0.15s;
 }
-.stats-pill-min:hover { opacity: 0.7; }
-
-.stats-pill-edit-icon {
-    width: 0.625rem;
-    height: 0.625rem;
-    opacity: 0;
-    transition: opacity 0.15s;
-}
-.stats-pill:hover .stats-pill-edit-icon { opacity: 0.4; }
 
 .stats-pill-unset {
     color: #9ca3af;

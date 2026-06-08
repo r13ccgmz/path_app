@@ -2,7 +2,9 @@
 
 namespace App\Enums;
 
-enum CourseType: string
+use Filament\Support\Contracts\HasLabel;
+
+enum CourseType: string implements HasLabel
 {
     case Core = 'core';
     case Prescribed = 'prescribed';
@@ -45,5 +47,10 @@ enum CourseType: string
             self::FieldStudy => 'teal',
             self::Seminar => 'gray',
         };
+    }
+
+    public function getLabel(): ?string
+    {
+        return $this->label();
     }
 }

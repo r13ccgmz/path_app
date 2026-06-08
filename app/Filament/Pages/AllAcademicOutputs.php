@@ -1,8 +1,10 @@
 <?php
 
 namespace App\Filament\Pages;
+use BezhanSalleh\FilamentShield\Traits\HasPageShield;
 
 use App\Filament\Pages\Concerns\HasAcademicOutputForm;
+use App\Filament\Pages\StudentHistory\HasFormHelpers;
 use App\Models\AcademicOutput;
 use Filament\Pages\Page;
 use Filament\Tables;
@@ -14,7 +16,8 @@ use Filament\Notifications\Notification;
 
 class AllAcademicOutputs extends Page implements HasTable
 {
-    use InteractsWithTable, HasAcademicOutputForm;
+    use HasPageShield;
+    use InteractsWithTable, HasAcademicOutputForm, HasFormHelpers;
 
     protected static ?int $navigationSort = 1;
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-document-duplicate';
@@ -40,12 +43,13 @@ class AllAcademicOutputs extends Page implements HasTable
                 ->icon('heroicon-o-plus')
                 ->color('primary')
                 ->modalHeading('Add Academic Output')
-                ->modalWidth('3xl')
+                ->modalWidth('4xl')
                 ->form($this->getAcademicOutputForm())
                 ->action(function (array $data): void {
                     $aoData = collect($data)->only([
                         'student_id', 'semester_id', 'title', 'type', 'type_other_description', 'drive_link', 'status', 
-                        'proposal_defense_date', 'proposal_defense_result', 'final_defense_date', 'final_defense_result', 'date_submitted'
+                        'proposal_defense_date', 'proposal_defense_result', 'final_defense_date', 'final_defense_result', 'date_submitted',
+                        'keywords', 'abstract'
                     ])->toArray();
 
                     // Auto-sync term_code from selected semester

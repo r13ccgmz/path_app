@@ -173,7 +173,7 @@
                                         </div>
                                     @endif
                                 </div>
-                                @if ($ao['is_editable'] ?? true)
+                                @if (($ao['is_editable'] ?? true) && !auth()->user()->hasRole('viewer'))
                                 <div class="flex gap-1 ml-3 mt-1">
                                     <button wire:click="startEditAo({{ $ao['id'] }})" class="text-gray-400 hover:text-primary-600 transition-colors p-1.5 rounded hover:bg-gray-100 dark:hover:bg-gray-700" title="Edit">
                                         <x-heroicon-o-pencil class="w-4 h-4" />
@@ -191,8 +191,10 @@
         @endif
 
         {{-- Add Academic Output (via Filament Action modal) --}}
+        @if (!auth()->user()->hasRole('viewer'))
         <div class="pt-3 border-t border-gray-200 dark:border-gray-700">
             {{ $this->getAction('addAcademicOutput') }}
         </div>
+        @endif
     </x-filament::section>
 @endif

@@ -7,11 +7,23 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 class Faculty extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory, LogsActivity, SoftDeletes;
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logFillable()
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->setDescriptionForEvent(fn(string $eventName) => "Faculty record {$eventName}");
+    }
 
     protected $table = 'faculty';
 
@@ -88,6 +100,38 @@ class Faculty extends Model
     public function committeeMemberships(): HasMany
     {
         return $this->hasMany(StudentCommitteeMember::class, 'faculty_id');
+    }
+
+    /**
+     * Students this faculty advises (via StudentCommitteeMember with 'Adviser' role).
+     * Used by MentorshipMonitoring, AdviseeDistributionChart, and FacultyResource.
+     */
+    public function advisees(): HasManyThrough
+    {
+        return $this->hasManyThrough(
+            Student::class,
+            StudentCommitteeMember::class,
+            'faculty_id',    // FK on student_committee_members
+            'id',            // FK on students
+            'id',            // local key on faculty
+            'student_id'     // local key on student_committee_members
+        )->where('student_committee_members.role', 'Adviser');
+    }
+
+    /**
+     * Graduate committee memberships (from graduate imports).
+     */
+    public function graduateCommitteeMembers(): HasMany
+    {
+        return $this->hasMany(GraduateCommitteeMember::class, 'faculty_id');
+    }
+
+    /**
+     * Academic output committee memberships.
+     */
+    public function academicOutputCommitteeMembers(): HasMany
+    {
+        return $this->hasMany(AcademicOutputCommittee::class, 'faculty_id');
     }
 
     // ── Accessors ──

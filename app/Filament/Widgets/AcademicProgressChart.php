@@ -15,6 +15,18 @@ class AcademicProgressChart extends Widget
     protected string $view = 'filament.widgets.dashboard-academic-progress-widget';
     protected static bool $isDiscovered = false;
 
+    public array $chartData = [];
+
+    public function mount(): void
+    {
+        $this->chartData = $this->getProgressData();
+    }
+
+    public function rendering(): void
+    {
+        $this->chartData = $this->getProgressData();
+    }
+
     public function getProgressData(): array
     {
         $filterFrom = $this->filters['filterFrom'] ?? null;

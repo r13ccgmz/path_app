@@ -113,7 +113,7 @@
                         
                         <div class="flex flex-col items-center mb-6 pt-2">
                             <img src="/images/PATH-Logo.png" class="h-16 w-auto mb-4 drop-shadow-sm transition-transform duration-500 hover:scale-105 dark:hidden" />
-                            <img src="/images/PATH-Logo.png" class="h-16 w-auto mb-4 drop-shadow-sm transition-transform duration-500 hover:scale-105 hidden dark:block" style="filter: brightness(0) invert(1);" />
+                            <img src="/images/PATH-Logo-White.png" class="h-16 w-auto mb-4 drop-shadow-sm transition-transform duration-500 hover:scale-105 hidden dark:block" />
                             <h2 class="text-2xl font-extrabold text-center tracking-tight">About PATH</h2>
                         </div>
 

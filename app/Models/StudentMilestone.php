@@ -4,9 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 class StudentMilestone extends Model
 {
+    use LogsActivity;
+
     protected $fillable = [
         'student_id',
         'milestone_template_id',
@@ -29,6 +33,17 @@ class StudentMilestone extends Model
             'date_completed' => 'date',
             'verified_at' => 'datetime',
         ];
+    }
+
+    // ── Activity Log ──
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logFillable()
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->setDescriptionForEvent(fn(string $eventName) => "Student milestone {$eventName}");
     }
 
     // ── Relationships ──

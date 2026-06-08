@@ -20,10 +20,49 @@ class EnrollmentProgramExport implements FromQuery, WithHeadings, WithMapping
 
     public function query()
     {
-        $query = Enrollee::query();
+        $query = Enrollee::query()->with(['program', 'programMajor']);
 
         if (!empty($this->programs)) {
-            $query->whereIn('degree_program', $this->programs);
+            $query->where(function ($q) {
+                $dbPrograms = \App\Models\Program::pluck('name')->toArray();
+
+                foreach ($this->programs as $programName) {
+                    if (empty($programName)) {
+                        $q->orWhereNull('degree_program')
+                          ->orWhere(fn($sub) => $sub->whereNull('program_id')->whereNull('program_major_id'));
+                        continue;
+                    }
+
+                    $q->orWhere('degree_program', $programName);
+
+                    // Try to split program name and major name based on known programs
+                    $matchedProgName = null;
+                    $matchedMajorName = null;
+
+                    foreach ($dbPrograms as $dbProg) {
+                        if (str_starts_with($programName, $dbProg)) {
+                            $remainder = substr($programName, strlen($dbProg));
+                            if (str_starts_with($remainder, ' in ')) {
+                                $matchedProgName = $dbProg;
+                                $matchedMajorName = substr($remainder, 4); // Strip ' in '
+                                break;
+                            }
+                        }
+                    }
+
+                    if ($matchedProgName && $matchedMajorName) {
+                        $q->orWhere(function ($sub) use ($matchedProgName, $matchedMajorName) {
+                            $sub->whereHas('program', fn($p) => $p->where('name', $matchedProgName))
+                                ->whereHas('programMajor', fn($pm) => $pm->where('name', $matchedMajorName));
+                        });
+                    } else {
+                        $q->orWhere(function ($sub) use ($programName) {
+                            $sub->whereHas('program', fn($p) => $p->where('name', $programName))
+                                ->whereNull('program_major_id');
+                        });
+                    }
+                }
+            });
         }
 
         if (!empty($this->termIds)) {

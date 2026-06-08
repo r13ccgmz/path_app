@@ -67,89 +67,136 @@
                             <span class="text-gray-500 dark:text-gray-400 text-xs">{{ $course['course_name'] }}</span>
                         </td>
                         <td class="px-3 py-2 text-center">
-                            <select
-                                wire:change="updateEnrollmentField({{ $course['enrollment_id'] }}, 'course_type_override', $event.target.value)"
-                                class="w-full text-xs rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 py-1 px-1 text-gray-600 dark:text-gray-400"
-                                title="Override course type for this student"
-                            >
-                                <option value="" {{ empty($course['course_type_override'] ?? null) ? 'selected' : '' }}>{{ $course['type'] }}</option>
-                                @foreach (['core','prescribed','major','specialization','elective','cognate','seminar','thesis','dissertation','field_study'] as $opt)
-                                    @php $optLabel = ucfirst(str_replace('_', ' ', $opt)); @endphp
-                                    @if ($optLabel !== $course['type'])
-                                        <option value="{{ $opt }}" {{ ($course['course_type_override'] ?? '') === $opt ? 'selected' : '' }}>{{ $optLabel }}</option>
-                                    @endif
-                                @endforeach
-                            </select>
+                            @if (auth()->user()->hasRole('viewer'))
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                                    {{ $course['type'] }}
+                                </span>
+                            @else
+                                <select
+                                    wire:change="updateEnrollmentField({{ $course['enrollment_id'] }}, 'course_type_override', $event.target.value)"
+                                    class="w-full text-xs rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 py-1 px-1 text-gray-600 dark:text-gray-400"
+                                    title="Override course type for this student"
+                                >
+                                    <option value="" {{ empty($course['course_type_override'] ?? null) ? 'selected' : '' }}>{{ $course['type'] }}</option>
+                                    @foreach (['core','prescribed','major','specialization','elective','cognate','seminar','thesis','dissertation','field_study'] as $opt)
+                                        @php $optLabel = ucfirst(str_replace('_', ' ', $opt)); @endphp
+                                        @if ($optLabel !== $course['type'])
+                                            <option value="{{ $opt }}" {{ ($course['course_type_override'] ?? '') === $opt ? 'selected' : '' }}>{{ $optLabel }}</option>
+                                        @endif
+                                    @endforeach
+                                </select>
+                            @endif
                         </td>
                         <td class="px-3 py-2 text-center font-mono text-xs text-gray-500 dark:text-gray-400">
-                            <input type="number"
-                                wire:change="updateEnrollmentField({{ $course['enrollment_id'] }}, 'units_earned', $event.target.value)"
-                                class="w-12 text-center text-xs rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 py-1 px-1 text-gray-600 dark:text-gray-400 focus:ring-1 focus:ring-primary-500"
-                                value="{{ $course['units'] ?? '' }}"
-                                placeholder="-"
-                                min="0" max="99"
-                            >
+                            @if (auth()->user()->hasRole('viewer'))
+                                <span>{{ $course['units'] ?? '-' }}</span>
+                            @else
+                                <input type="number"
+                                    wire:change="updateEnrollmentField({{ $course['enrollment_id'] }}, 'units_earned', $event.target.value)"
+                                    class="w-12 text-center text-xs rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 py-1 px-1 text-gray-600 dark:text-gray-400 focus:ring-1 focus:ring-primary-500"
+                                    value="{{ $course['units'] ?? '' }}"
+                                    placeholder="-"
+                                    min="0" max="99"
+                                >
+                            @endif
                         </td>
                         <td class="px-3 py-2 text-center">
-                            <select
-                                wire:change="updateEnrollmentField({{ $course['enrollment_id'] }}, 'grade', $event.target.value)"
-                                class="w-20 text-center text-xs rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 py-1 px-1 text-gray-600 dark:text-gray-400"
-                            >
-                                <option value="" {{ empty($course['grade']) ? 'selected' : '' }}>-</option>
-                                <option value="1.0" {{ ($course['grade'] ?? '') === '1.0' ? 'selected' : '' }}>1.0</option>
-                                <option value="1.25" {{ ($course['grade'] ?? '') === '1.25' ? 'selected' : '' }}>1.25</option>
-                                <option value="1.5" {{ ($course['grade'] ?? '') === '1.5' ? 'selected' : '' }}>1.5</option>
-                                <option value="1.75" {{ ($course['grade'] ?? '') === '1.75' ? 'selected' : '' }}>1.75</option>
-                                <option value="2.0" {{ ($course['grade'] ?? '') === '2.0' ? 'selected' : '' }}>2.0</option>
-                                <option value="2.25" {{ ($course['grade'] ?? '') === '2.25' ? 'selected' : '' }}>2.25</option>
-                                <option value="2.5" {{ ($course['grade'] ?? '') === '2.5' ? 'selected' : '' }}>2.5</option>
-                                <option value="2.75" {{ ($course['grade'] ?? '') === '2.75' ? 'selected' : '' }}>2.75</option>
-                                <option value="3.0" {{ ($course['grade'] ?? '') === '3.0' ? 'selected' : '' }}>3.0</option>
-                                <option value="4.0" {{ ($course['grade'] ?? '') === '4.0' ? 'selected' : '' }}>4.0</option>
-                                <option value="5.0" {{ ($course['grade'] ?? '') === '5.0' ? 'selected' : '' }}>5.0</option>
-                                <option value="INC" {{ ($course['grade'] ?? '') === 'INC' ? 'selected' : '' }}>INC</option>
-                                <option value="DRP" {{ ($course['grade'] ?? '') === 'DRP' ? 'selected' : '' }}>DRP</option>
-                            </select>
+                            @if (auth()->user()->hasRole('viewer'))
+                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400" title="Restricted Access">
+                                    Confidential
+                                </span>
+                            @elseif (auth()->user()->hasRole('super_admin'))
+                                @if ($this->revealGrades)
+                                    <select
+                                        wire:change="updateEnrollmentField({{ $course['enrollment_id'] }}, 'grade', $event.target.value)"
+                                        class="w-20 text-center text-xs rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 py-1 px-1 focus:ring-1 focus:ring-primary-500 text-success-600 font-bold"
+                                    >
+                                        <option value="" {{ empty($course['grade']) ? 'selected' : '' }}>-</option>
+                                        @foreach (['1.0','1.25','1.5','1.75','2.0','2.25','2.5','2.75','3.0','4.0','5.0','INC','DRP'] as $g)
+                                            <option value="{{ $g }}" {{ ($course['grade'] ?? '') === $g ? 'selected' : '' }}>{{ $g }}</option>
+                                        @endforeach
+                                    </select>
+                                @else
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono text-gray-400 tracking-wider">
+                                        ••
+                                    </span>
+                                @endif
+                            @else
+                                <select
+                                    wire:change="updateEnrollmentField({{ $course['enrollment_id'] }}, 'grade', $event.target.value)"
+                                    class="w-20 text-center text-xs rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 py-1 px-1 text-gray-600 dark:text-gray-400"
+                                >
+                                    <option value="" {{ empty($course['grade']) ? 'selected' : '' }}>-</option>
+                                    @foreach (['1.0','1.25','1.5','1.75','2.0','2.25','2.5','2.75','3.0','4.0','5.0','INC','DRP'] as $g)
+                                        <option value="{{ $g }}" {{ ($course['grade'] ?? '') === $g ? 'selected' : '' }}>{{ $g }}</option>
+                                    @endforeach
+                                </select>
+                            @endif
                         </td>
                         {{-- Term: editable code input + label --}}
                         <td class="px-3 py-1.5 text-center">
-                            <div class="flex flex-col items-center gap-0.5">
-                                <input type="text"
-                                    wire:change="updateEnrollmentField({{ $course['enrollment_id'] }}, 'term', $event.target.value)"
-                                    class="w-14 text-center text-xs font-mono rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 py-0.5 px-1 text-gray-700 dark:text-gray-300 focus:ring-1 focus:ring-primary-500"
-                                    value="{{ $course['term_code_raw'] ?? '' }}"
-                                    placeholder="-"
-                                >
-                                @if ($course['term_taken'] && $course['term_taken'] !== $course['term_code_raw'])
-                                    <span class="text-[10px] leading-tight text-gray-400 dark:text-gray-500">{{ $course['term_taken'] }}</span>
-                                @endif
-                            </div>
+                            @if (auth()->user()->hasRole('viewer'))
+                                <div class="flex flex-col items-center gap-0.5">
+                                    <span class="text-xs font-mono text-gray-750 dark:text-gray-300">{{ $course['term_code_raw'] ?? '-' }}</span>
+                                    @if ($course['term_taken'] && $course['term_taken'] !== $course['term_code_raw'])
+                                        <span class="text-[10px] leading-tight text-gray-400 dark:text-gray-500">{{ $course['term_taken'] }}</span>
+                                    @endif
+                                </div>
+                            @else
+                                <div class="flex flex-col items-center gap-0.5">
+                                    <input type="text"
+                                        wire:change="updateEnrollmentField({{ $course['enrollment_id'] }}, 'term', $event.target.value)"
+                                        class="w-14 text-center text-xs font-mono rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 py-0.5 px-1 text-gray-700 dark:text-gray-300 focus:ring-1 focus:ring-primary-500"
+                                        value="{{ $course['term_code_raw'] ?? '' }}"
+                                        placeholder="-"
+                                    >
+                                    @if ($course['term_taken'] && $course['term_taken'] !== $course['term_code_raw'])
+                                        <span class="text-[10px] leading-tight text-gray-400 dark:text-gray-500">{{ $course['term_taken'] }}</span>
+                                    @endif
+                                </div>
+                            @endif
                         </td>
                         <td class="px-3 py-2 text-center">
-                            <select
-                                wire:change="updateEnrollmentField({{ $course['enrollment_id'] }}, 'status', $event.target.value)"
-                                class="text-xs rounded-md border-gray-300 dark:border-gray-600 py-1 px-2 transition-colors
-                                {{ match($course['status']) {
-                                    'completed' => 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400',
-                                    'enrolled', 'in-progress' => 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-                                    'incomplete' => 'bg-yellow-50 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
-                                    'dropped', 'withdrawn' => 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-                                    default => 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400',
-                                } }}"
-                            >
-                                <option value="enrolled" {{ $course['status'] === 'enrolled' ? 'selected' : '' }}>Enrolled</option>
-                                <option value="completed" {{ $course['status'] === 'completed' ? 'selected' : '' }}>Completed</option>
-                                <option value="in-progress" {{ $course['status'] === 'in-progress' ? 'selected' : '' }}>In Progress</option>
-                                <option value="incomplete" {{ $course['status'] === 'incomplete' ? 'selected' : '' }}>Incomplete</option>
-                                <option value="dropped" {{ $course['status'] === 'dropped' ? 'selected' : '' }}>Dropped</option>
-                                <option value="withdrawn" {{ $course['status'] === 'withdrawn' ? 'selected' : '' }}>Withdrawn</option>
-                            </select>
+                            @if (auth()->user()->hasRole('viewer'))
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold
+                                    {{ match($course['status']) {
+                                        'completed' => 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+                                        'enrolled', 'in-progress' => 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+                                        'incomplete' => 'bg-yellow-50 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
+                                        'dropped', 'withdrawn' => 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+                                        default => 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400',
+                                    } }}"
+                                >
+                                    {{ ucfirst(str_replace('-', ' ', $course['status'])) }}
+                                </span>
+                            @else
+                                <select
+                                    wire:change="updateEnrollmentField({{ $course['enrollment_id'] }}, 'status', $event.target.value)"
+                                    class="text-xs rounded-md border-gray-300 dark:border-gray-600 py-1 px-2 transition-colors
+                                    {{ match($course['status']) {
+                                        'completed' => 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+                                        'enrolled', 'in-progress' => 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+                                        'incomplete' => 'bg-yellow-50 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400',
+                                        'dropped', 'withdrawn' => 'bg-red-50 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+                                        default => 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400',
+                                    } }}"
+                                >
+                                    <option value="enrolled" {{ $course['status'] === 'enrolled' ? 'selected' : '' }}>Enrolled</option>
+                                    <option value="completed" {{ $course['status'] === 'completed' ? 'selected' : '' }}>Completed</option>
+                                    <option value="in-progress" {{ $course['status'] === 'in-progress' ? 'selected' : '' }}>In Progress</option>
+                                    <option value="incomplete" {{ $course['status'] === 'incomplete' ? 'selected' : '' }}>Incomplete</option>
+                                    <option value="dropped" {{ $course['status'] === 'dropped' ? 'selected' : '' }}>Dropped</option>
+                                    <option value="withdrawn" {{ $course['status'] === 'withdrawn' ? 'selected' : '' }}>Withdrawn</option>
+                                </select>
+                            @endif
                         </td>
                         <td class="px-3 py-1 text-center">
-                            <button wire:click="confirmDeleteEnrollment({{ $course['enrollment_id'] }})"
-                                class="text-gray-300 hover:text-red-500 transition-colors p-1" title="Delete enrollment">
-                                <x-heroicon-o-x-mark class="w-3.5 h-3.5" />
-                            </button>
+                            @if (!auth()->user()->hasRole('viewer'))
+                                <button wire:click="confirmDeleteEnrollment({{ $course['enrollment_id'] }})"
+                                    class="text-gray-300 hover:text-red-500 transition-colors p-1" title="Delete enrollment">
+                                    <x-heroicon-o-x-mark class="w-3.5 h-3.5" />
+                                </button>
+                            @endif
                         </td>
                     </tr>
                 @endif

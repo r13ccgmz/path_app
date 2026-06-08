@@ -36,6 +36,43 @@ html:not(.dark) .export-pdf-btn:hover {
 }
 
 /* ──────────────────────────────────────────
+   HEADER SETTINGS BUTTON
+   ────────────────────────────────────────── */
+.cm-header-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.5rem 0.875rem;
+    border-radius: 0.625rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    border: 1px solid transparent;
+    white-space: nowrap;
+}
+html:not(.dark) .cm-header-btn {
+    background-color: #ecfdf5;
+    color: #1A5C38;
+    border-color: #a7f3d0;
+}
+html:not(.dark) .cm-header-btn:hover {
+    background-color: #1A5C38;
+    color: #fff;
+    border-color: #1A5C38;
+}
+.dark .cm-header-btn {
+    background-color: rgba(76, 175, 125, 0.1);
+    color: #4CAF7D;
+    border-color: rgba(76, 175, 125, 0.25);
+}
+.dark .cm-header-btn:hover {
+    background-color: rgba(76, 175, 125, 0.25);
+    color: #6ee7a8;
+    border-color: #4CAF7D;
+}
+
+/* ──────────────────────────────────────────
    EDITABLE REQUIREMENTS
    ────────────────────────────────────────── */
 .req-action-btn {

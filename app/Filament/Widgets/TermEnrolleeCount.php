@@ -83,20 +83,37 @@ class TermEnrolleeCount extends Widget
 
     public function getProgramBreakdown(): array
     {
-        $query = Enrollee::select('degree_program', DB::raw('COUNT(DISTINCT student_number) as count'));
+        $query = Enrollee::select('program_id', 'program_major_id', 'degree_program', DB::raw('COUNT(DISTINCT student_number) as count'))
+            ->with(['program', 'programMajor']);
 
         $terms = $this->getFilteredTermIds();
         if ($terms !== null) {
             $query->whereIn('term_id', $terms);
         }
 
-        return $query->groupBy('degree_program')
-            ->orderByDesc('count')
+        return $query->groupBy('program_id', 'program_major_id', 'degree_program')
             ->get()
-            ->map(fn($row) => [
-                'program' => $row->degree_program ?: '(No Program)',
-                'count' => $row->count,
+            ->map(function ($row) {
+                if ($row->program) {
+                    $programName = $row->program->name;
+                    if ($row->programMajor) {
+                        $programName .= ' in ' . $row->programMajor->name;
+                    }
+                } else {
+                    $programName = $row->degree_program ?: '(No Program)';
+                }
+                return [
+                    'program' => $programName,
+                    'count' => $row->count,
+                ];
+            })
+            ->groupBy('program')
+            ->map(fn($group) => [
+                'program' => $group->first()['program'],
+                'count' => $group->sum('count'),
             ])
+            ->sortByDesc('count')
+            ->values()
             ->toArray();
     }
 

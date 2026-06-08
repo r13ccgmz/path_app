@@ -5,9 +5,13 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 class MilestoneTemplate extends Model
 {
+    use LogsActivity;
+
     protected $fillable = [
         'program_id',
         'applies_to_all_programs',
@@ -26,6 +30,17 @@ class MilestoneTemplate extends Model
             'is_required' => 'boolean',
             'sort_order' => 'integer',
         ];
+    }
+
+    // ── Activity Log ──
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logFillable()
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->setDescriptionForEvent(fn(string $eventName) => "Milestone template {$eventName}");
     }
 
     // ── Relationships ──

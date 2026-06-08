@@ -63,30 +63,44 @@ class AdminPanelProvider extends PanelProvider
             ->font('Avenir, "Helvetica Neue", Optima, sans-serif')
             ->topNavigation()
             ->navigationGroups([
-                NavigationGroup::make('Main'),
                 NavigationGroup::make('Academics'),
+                NavigationGroup::make('Faculty Management'),
                 NavigationGroup::make('Student Management'),
-                NavigationGroup::make('Academic Outputs'),
                 NavigationGroup::make('System'),
-                NavigationGroup::make('Users'),
             ])
             // Sidebar footer removed because we are using topNavigation
             ->userMenuItems([
                 MenuItem::make()
-                    ->label('Help & User Guide')
-                    ->url(fn (): string => \App\Filament\Pages\HelpAndUserGuide::getUrl())
-                    ->icon('heroicon-o-question-mark-circle'),
+                    ->label('Users')
+                    ->url(fn (): string => \App\Filament\Resources\UserResource::getUrl())
+                    ->icon('heroicon-o-users')
+                    ->sort(1)
+                    ->visible(fn (): bool => auth()->user()?->can('viewAny', \App\Models\User::class) ?? false),
+                MenuItem::make()
+                    ->label('Roles')
+                    ->url(fn (): string => \BezhanSalleh\FilamentShield\Resources\Roles\RoleResource::getUrl())
+                    ->icon('heroicon-o-shield-check')
+                    ->sort(2)
+                    ->visible(fn (): bool => auth()->user()?->can('viewAny', \Spatie\Permission\Models\Role::class) ?? false),
+                MenuItem::make()
+                    ->label('User Manual')
+                    ->url(fn (): string => \App\Filament\Pages\UserManual::getUrl())
+                    ->icon('heroicon-o-book-open')
+                    ->sort(10),
                 MenuItem::make()
                     ->label('Official Website')
                     ->url('https://cpaf.uplb.edu.ph')
-                    ->icon('heroicon-o-globe-alt'),
+                    ->icon('heroicon-o-globe-alt')
+                    ->sort(11),
             ])
             ->globalSearchKeyBindings(['command+k', 'ctrl+k'])
             ->databaseNotifications()
             ->viteTheme('resources/css/filament/admin/theme.css')
             ->plugins([
                 FilamentShieldPlugin::make()
-                    ->globallySearchable(false),
+                    ->globallySearchable(false)
+                    ->navigationSort(2)
+                    ->registerNavigation(false),
             ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\Filament\Pages')

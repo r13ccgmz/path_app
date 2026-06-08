@@ -4,9 +4,21 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Cache;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 class SystemSetting extends Model
 {
+    use LogsActivity;
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logFillable()
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->setDescriptionForEvent(fn(string $eventName) => "System setting {$eventName}");
+    }
     protected $table = 'system_settings';
 
     protected $fillable = [
@@ -41,12 +53,12 @@ class SystemSetting extends Model
      */
     public static function set(string $key, mixed $value): void
     {
-        $setting = static::where('key', $key)->first();
-        if ($setting) {
-            $storeValue = is_array($value) ? json_encode($value) : (string) $value;
-            $setting->update(['value' => $storeValue]);
-            Cache::forget("system_setting:{$key}");
-        }
+        $storeValue = is_array($value) ? json_encode($value) : (string) $value;
+        static::updateOrCreate(
+            ['key' => $key],
+            ['value' => $storeValue]
+        );
+        Cache::forget("system_setting:{$key}");
     }
 
     /**

@@ -1,16 +1,18 @@
 <x-filament-widgets::widget>
-    <div class="bg-white dark:bg-gray-900 border border-gray-200 dark:border-white/10 rounded-xl p-5 shadow-sm flex flex-col h-full w-full">
-        <div class="mb-4">
-            <h3 class="text-base font-bold tracking-tight text-gray-900 dark:text-white mb-1">Term Enrollment Focus</h3>
-            <p class="text-xs font-medium text-gray-500 dark:text-gray-400">Detailed breakdown of unique enrollees and course registrations.</p>
-        </div>
+    <x-filament::section class="fi-section-term-enrollee">
+        <x-slot name="heading">
+            <div class="flex flex-col">
+                <span class="text-base font-bold tracking-tight text-gray-900 dark:text-white">Term Enrollment Focus</span>
+                <span class="text-xs font-medium text-gray-500 dark:text-gray-400 mt-0.5">Detailed breakdown of unique enrollees and course registrations.</span>
+            </div>
+        </x-slot>
 
         <div class="space-y-6">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {{-- Enrollee Count Card --}}
                 <div class="rounded-xl shadow-sm ring-1 ring-gray-950/5 dark:ring-white/10 p-5 flex flex-col justify-center bg-gray-50 dark:bg-gray-800/50">
                     <div class="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Unique Enrollees</div>
-                    <div class="text-3xl font-bold text-gray-900 dark:text-white mt-1">
+                    <div class="text-3xl font-bold text-gray-900 dark:text-white mt-1" style="font-family: Avenir, 'Helvetica Neue', Optima, sans-serif;">
                         {{ number_format($this->getEnrolleeCount()) }}
                     </div>
                 </div>
@@ -18,7 +20,7 @@
                 {{-- Course Registrations Card --}}
                 <div class="rounded-xl shadow-sm ring-1 ring-gray-950/5 dark:ring-white/10 p-5 flex flex-col justify-center bg-primary-50 dark:bg-primary-900/20">
                     <div class="text-xs font-bold text-primary-600 dark:text-primary-400 uppercase tracking-wider">Course Registrations</div>
-                    <div class="text-3xl font-bold text-primary-700 dark:text-primary-300 mt-1">
+                    <div class="text-3xl font-bold text-primary-700 dark:text-primary-300 mt-1" style="font-family: Avenir, 'Helvetica Neue', Optima, sans-serif;">
                         {{ number_format($this->getCourseRegistrationsCount()) }}
                     </div>
                 </div>
@@ -37,11 +39,11 @@
                                         <td class="px-4 py-3 text-gray-700 dark:text-gray-300">
                                             {{ $program['program'] }}
                                         </td>
-                                        <td class="px-4 py-3 text-right font-medium text-gray-900 dark:text-white whitespace-nowrap w-24">
+                                        <td class="px-4 py-3 text-right font-medium text-gray-900 dark:text-white whitespace-nowrap w-24" style="font-family: Avenir, 'Helvetica Neue', Optima, sans-serif;">
                                             {{ number_format($program['count']) }}
                                         </td>
                                         <td class="px-4 py-2 w-28 text-right">
-                                            <x-filament::button wire:click="exportProgram('{{ $program['program'] }}')" icon="heroicon-m-arrow-down-tray" size="xs" color="success">
+                                            <x-filament::button wire:click="exportProgram('{{ addslashes($program['program']) }}')" icon="heroicon-m-arrow-down-tray" size="xs" color="success">
                                                 Export
                                             </x-filament::button>
                                         </td>
@@ -53,6 +55,5 @@
                 </div>
             @endif
         </div>
-        </div>
-    </div>
+    </x-filament::section>
 </x-filament-widgets::widget>

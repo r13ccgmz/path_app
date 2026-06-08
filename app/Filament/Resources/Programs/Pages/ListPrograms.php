@@ -13,7 +13,10 @@ class ListPrograms extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            CreateAction::make(),
+            CreateAction::make()
+                ->modalHeading('Create Program')
+                ->modalWidth('4xl')
+                ->visible(fn () => !auth()->user()->hasRole('viewer')),
         ];
     }
 }

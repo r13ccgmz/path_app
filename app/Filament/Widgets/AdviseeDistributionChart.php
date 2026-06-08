@@ -3,87 +3,176 @@
 namespace App\Filament\Widgets;
 
 use App\Models\Faculty;
-use Filament\Widgets\ChartWidget;
+use App\Models\Semester;
+use Filament\Widgets\Widget;
+use Filament\Forms\Concerns\InteractsWithForms;
+use Filament\Forms\Contracts\HasForms;
+use Filament\Schemas\Schema;
+use Filament\Forms\Components\Select;
 use Illuminate\Support\Facades\DB;
+use Livewire\Attributes\On;
 
-class AdviseeDistributionChart extends ChartWidget
+class AdviseeDistributionChart extends Widget implements HasForms
 {
+    use InteractsWithForms;
+
     protected static bool $isDiscovered = false;
 
-    protected ?string $heading = 'Advisee Distribution (Top 15 Faculty)';
+    protected string $view = 'filament.widgets.advisee-distribution-chart';
     protected int | string | array $columnSpan = 'full';
 
-    public function getDescription(): ?string
+    // Reactive properties passed from page-level filters
+    public ?array $semesterIds = null;
+
+    // Local form filter properties
+    public ?array $termFilter = [];
+    public ?string $sortBy = 'name_asc';
+    public array $chartData = [];
+
+    protected bool $isInitialized = false;
+
+    public function mount(): void
     {
-        return "Bar chart of active faculty with the most advisees, split by Master's vs PhD.";
+        $this->termFilter = $this->semesterIds ?? [];
+        $this->chartData = $this->getChartData();
     }
 
-    protected function getData(): array
+    public function rendering(): void
     {
-        $faculty = Faculty::where('is_external', false)
-            ->where('faculty_status', 'active')
-            ->withCount([
-                'advisees as masters_count' => function ($q) {
-                    $q->whereHas('program', fn ($p) => $p->whereIn('degree_level', ['master', 'master_of_science']));
-                },
-                'advisees as phd_count' => function ($q) {
-                    $q->whereHas('program', fn ($p) => $p->where('degree_level', 'doctorate'));
-                },
+        $this->chartData = $this->getChartData();
+    }
+
+    public function updatedSemesterIds(): void
+    {
+        if (!$this->isInitialized && !empty($this->semesterIds)) {
+            $this->termFilter = $this->semesterIds;
+            $this->isInitialized = true;
+        }
+        $this->chartData = $this->getChartData();
+        $this->js('window.dispatchEvent(new CustomEvent("refresh-advisee-chart"))');
+    }
+
+    public function updatedTermFilter(): void
+    {
+        $this->chartData = $this->getChartData();
+        $this->js('window.dispatchEvent(new CustomEvent("refresh-advisee-chart"))');
+    }
+
+    public function updatedSortBy(): void
+    {
+        $this->chartData = $this->getChartData();
+        $this->js('window.dispatchEvent(new CustomEvent("refresh-advisee-chart"))');
+    }
+
+    #[On('assignment-changed')]
+    public function refreshData(): void
+    {
+        $this->chartData = $this->getChartData();
+        $this->js('window.dispatchEvent(new CustomEvent("refresh-advisee-chart"))');
+    }
+
+    public function form(Schema $form): Schema
+    {
+        return $form
+            ->schema([
+                Select::make('termFilter')
+                    ->multiple()
+                    ->options($this->terms)
+                    ->label('Term filter')
+                    ->placeholder('Filter by Terms (All)')
+                    ->live()
+                    ->extraAttributes(['class' => 'min-w-[220px]']),
+
+                Select::make('sortBy')
+                    ->options([
+                        'name_asc' => '🔤 Sort by Name (A → Z)',
+                        'name_desc' => '🔤 Sort by Name (Z → A)',
+                        'total' => '📊 Sort by Total Load',
+                        'student' => '📊 Sort by Student Advisory',
+                        'graduate' => '📊 Sort by Graduate Committee',
+                        'academic' => '📊 Sort by Academic Output',
+                    ])
+                    ->label('Sort by')
+                    ->selectablePlaceholder(false)
+                    ->live()
+                    ->extraAttributes(['class' => 'w-[220px]'])
             ])
+            ->columns(2);
+    }
+
+    public function getTermsProperty(): array
+    {
+        return Semester::with('academicYear')
+            ->orderByRaw('CAST(term_code AS UNSIGNED) DESC')
             ->get()
-            ->filter(fn ($f) => ($f->masters_count + $f->phd_count) > 0)
-            ->sortByDesc(fn ($f) => $f->masters_count + $f->phd_count)
-            ->take(15);
+            ->mapWithKeys(fn ($s) => [$s->id => "[{$s->term_code}] {$s->label}"])
+            ->toArray();
+    }
+
+    public function getChartData(): array
+    {
+        $scmTermCond = '';
+        $gcmTermCond = '';
+        $aocTermCond = '';
+        $sortColumn = 'total_count';
+        $sortDirection = 'DESC';
+        $sortByName = false;
+
+        // Use widget's own term filter first, fallback to parent page semester filters
+        $activeTerms = !empty($this->termFilter) ? $this->termFilter : ($this->semesterIds ?? []);
+
+        if (!empty($activeTerms)) {
+            $ids = implode(',', array_map('intval', $activeTerms));
+            $scmTermCond = " AND (student_committee_members.term_start_id IN ({$ids}) OR student_committee_members.term_end_id IN ({$ids}))";
+            $gcmTermCond = " AND (graduate_committee_members.term_start_id IN ({$ids}) OR graduate_committee_members.term_end_id IN ({$ids}))";
+            $aocTermCond = " AND (academic_output_committee.term_start_id IN ({$ids}) OR academic_output_committee.term_end_id IN ({$ids}))";
+        }
+
+        $filter = $this->sortBy ?? 'name_asc';
+
+        match ($filter) {
+            'student' => $sortColumn = 'student_count',
+            'graduate' => $sortColumn = 'grad_count',
+            'academic' => $sortColumn = 'ao_count',
+            'total' => $sortColumn = 'total_count',
+            'name_asc' => $sortByName = true,
+            'name_desc' => ($sortByName = true) && ($sortDirection = 'DESC'),
+            default => $sortByName = true,
+        };
+        if ($filter === 'name_asc') $sortDirection = 'ASC';
+
+        $query = Faculty::where('is_external', false)
+            ->whereNull('deleted_at')
+            ->addSelect([
+                'faculty.*',
+                DB::raw("(SELECT COUNT(*) FROM student_committee_members WHERE student_committee_members.faculty_id = faculty.id{$scmTermCond}) as student_count"),
+                DB::raw("(SELECT COUNT(*) FROM graduate_committee_members WHERE graduate_committee_members.faculty_id = faculty.id{$gcmTermCond}) as grad_count"),
+                DB::raw("(SELECT COUNT(*) FROM academic_output_committee WHERE academic_output_committee.faculty_id = faculty.id{$aocTermCond}) as ao_count"),
+                DB::raw("(
+                    (SELECT COUNT(*) FROM student_committee_members WHERE student_committee_members.faculty_id = faculty.id{$scmTermCond}) +
+                    (SELECT COUNT(*) FROM graduate_committee_members WHERE graduate_committee_members.faculty_id = faculty.id{$gcmTermCond}) +
+                    (SELECT COUNT(*) FROM academic_output_committee WHERE academic_output_committee.faculty_id = faculty.id{$aocTermCond})
+                ) as total_count"),
+            ]);
+
+        if ($sortByName) {
+            $query->orderBy('last_name', $sortDirection)->orderBy('first_name', $sortDirection);
+        } else {
+            $query->orderByDesc($sortColumn);
+        }
+
+        $faculty = $query->get();
 
         $labels = $faculty->map(fn ($f) => $f->last_name . ', ' . substr($f->first_name, 0, 1) . '.')->values()->toArray();
-        $mastersData = $faculty->pluck('masters_count')->values()->toArray();
-        $phdData = $faculty->pluck('phd_count')->values()->toArray();
+        $studentData = $faculty->pluck('student_count')->map(fn ($v) => (int) $v)->values()->toArray();
+        $gradData = $faculty->pluck('grad_count')->map(fn ($v) => (int) $v)->values()->toArray();
+        $aoData = $faculty->pluck('ao_count')->map(fn ($v) => (int) $v)->values()->toArray();
 
         return [
-            'datasets' => [
-                [
-                    'label' => "Master's",
-                    'data' => $mastersData,
-                    'backgroundColor' => 'rgba(59, 130, 246, 0.7)',
-                    'borderColor' => 'rgba(59, 130, 246, 1)',
-                    'borderWidth' => 1,
-                ],
-                [
-                    'label' => 'PhD',
-                    'data' => $phdData,
-                    'backgroundColor' => 'rgba(16, 185, 129, 0.7)',
-                    'borderColor' => 'rgba(16, 185, 129, 1)',
-                    'borderWidth' => 1,
-                ],
-            ],
             'labels' => $labels,
+            'studentData' => $studentData,
+            'gradData' => $gradData,
+            'aoData' => $aoData,
         ];
-    }
-
-    protected function getOptions(): array
-    {
-        return [
-            'responsive' => true,
-            'maintainAspectRatio' => false,
-            'scales' => [
-                'x' => [
-                    'stacked' => true,
-                    'grid' => ['display' => false],
-                ],
-                'y' => [
-                    'stacked' => true,
-                    'beginAtZero' => true,
-                    'ticks' => ['stepSize' => 1],
-                ],
-            ],
-            'plugins' => [
-                'legend' => ['position' => 'top'],
-            ],
-        ];
-    }
-
-    protected function getType(): string
-    {
-        return 'bar';
     }
 }

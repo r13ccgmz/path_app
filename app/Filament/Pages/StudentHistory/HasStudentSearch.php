@@ -20,14 +20,6 @@ trait HasStudentSearch
 
     protected function getHeaderWidgets(): array
     {
-        // Only show dashboard widgets when viewing the main list (no specific student selected)
-        if (empty($this->studentInfo)) {
-            return [
-                \App\Filament\Widgets\StudentOverviewWidget::class,
-                \App\Filament\Widgets\StudentDemographicsChartsWidget::class,
-            ];
-        }
-
         return [];
     }
 
@@ -70,14 +62,6 @@ trait HasStudentSearch
     }
 
 
-    public function mount(): void
-    {
-        // Accept studentNumber from query string
-        $this->studentNumber = request()->query('studentNumber', '');
-        if (!empty($this->studentNumber)) {
-            $this->search();
-        }
-    }
 
 
     public function updatedStudentNumber(): void
@@ -443,6 +427,7 @@ trait HasStudentSearch
 
         // Build a lookup: semester_id → student_program_id
         $this->ensureStudentPrograms($student);
+        $student->load('studentPrograms'); // Refresh after additive sync
         $programBySemester = [];
         foreach ($student->studentPrograms as $sp) {
             foreach ($sp->enrollments()->pluck('semester_id')->toArray() as $sid) {
@@ -454,14 +439,13 @@ trait HasStudentSearch
             ->whereNotNull('degree_program')
             ->where('degree_program', '!=', '')
             ->get(['term_id', 'degree_program']);
-        $matcher = \App\Services\ProgramMatcher::instance();
-        $spLookup = $student->studentPrograms->keyBy('program_id');
+        // Key by raw_degree_name for precise matching (supports same program, different major)
+        $spByRawDegree = $student->studentPrograms->keyBy('raw_degree_name');
         foreach ($enrolleePrograms as $ep) {
             $semId = $semesterLookup[$ep->term_id] ?? null;
             if (!$semId) continue;
-            $progId = $matcher->match($ep->degree_program);
-            if ($progId && isset($spLookup[$progId])) {
-                $programBySemester[$semId] = $spLookup[$progId]->id;
+            if (isset($spByRawDegree[$ep->degree_program])) {
+                $programBySemester[$semId] = $spByRawDegree[$ep->degree_program]->id;
             }
         }
 

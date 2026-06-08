@@ -37,9 +37,16 @@ class RoleResource extends Resource
     // Override navigation explicitly to fix Shield's group bug
     use HasShieldFormComponents;
 
-    protected static \UnitEnum|string|null $navigationGroup = 'Users';
+    protected static bool $shouldRegisterNavigation = false;
+
+    protected static \UnitEnum|string|null $navigationGroup = 'Profile';
     protected static \BackedEnum|string|null $navigationIcon = 'heroicon-o-shield-check';
-    protected static ?int $navigationSort = 3;
+    protected static ?int $navigationSort = 2;
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        return false;
+    }
 
     public static function form(Schema $schema): Schema
     {

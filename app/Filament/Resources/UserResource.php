@@ -16,10 +16,16 @@ use Illuminate\Support\Facades\Hash;
 class UserResource extends Resource
 {
     protected static ?string $model = User::class;
+    protected static bool $shouldRegisterNavigation = false;
+
+    public static function shouldRegisterNavigation(): bool
+    {
+        return false;
+    }
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-user-group';
 
 
-    protected static string|\UnitEnum|null $navigationGroup = 'Users';
+    protected static string|\UnitEnum|null $navigationGroup = 'System';
 
     protected static ?int $navigationSort = 1;
 
@@ -86,7 +92,14 @@ class UserResource extends Resource
                             ->default('active')
                             ->required(),
                         Forms\Components\Select::make('roles')
-                            ->relationship('roles', 'name')
+                            ->relationship(
+                                'roles',
+                                'name',
+                                modifyQueryUsing: fn ($query, $record) => 
+                                    (!$record || $record->email !== 'admin@cpaf.uplb.edu.ph')
+                                        ? $query->where('name', '!=', 'super_admin')
+                                        : $query
+                            )
                             ->multiple()
                             ->preload()
                             ->searchable(),

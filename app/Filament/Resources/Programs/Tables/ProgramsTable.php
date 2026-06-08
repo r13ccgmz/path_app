@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Programs\Tables;
 
 use App\Enums\DegreeLevel;
+use App\Models\Program;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
@@ -62,13 +63,17 @@ class ProgramsTable
                     ->falseLabel('Inactive'),
             ])
             ->recordActions([
-                EditAction::make(),
-                DeleteAction::make(),
+                EditAction::make()
+                    ->modalHeading(fn (Program $record) => "Edit Program: {$record->name}")
+                    ->modalWidth('4xl')
+                    ->visible(fn () => !auth()->user()->hasRole('viewer')),
+                DeleteAction::make()
+                    ->visible(fn () => !auth()->user()->hasRole('viewer')),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
                     DeleteBulkAction::make(),
-                ]),
+                ])->visible(fn () => !auth()->user()->hasRole('viewer')),
             ]);
     }
 }

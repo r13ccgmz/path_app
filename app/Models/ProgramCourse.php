@@ -6,9 +6,13 @@ use App\Enums\CourseType;
 use App\Enums\SemesterPeriod;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 class ProgramCourse extends Model
 {
+    use LogsActivity;
+
     protected $fillable = [
         'program_id',
         'course_id',
@@ -18,7 +22,6 @@ class ProgramCourse extends Model
         'sub_group',
         'semester_offered',
         'applies_to_all_majors',
-        'year_level',
         'semester_recommended',
         'is_required',
         'description',
@@ -39,6 +42,17 @@ class ProgramCourse extends Model
             'lecture_hours' => 'decimal:1',
             'lab_hours' => 'decimal:1',
         ];
+    }
+
+    // ── Activity Log ──
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logFillable()
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->setDescriptionForEvent(fn(string $eventName) => "Program course {$eventName}");
     }
 
     // ── Relationships ──

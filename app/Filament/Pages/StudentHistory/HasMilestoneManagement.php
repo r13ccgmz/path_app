@@ -84,6 +84,8 @@ trait HasMilestoneManagement
      */
     public function loadTemplateMilestones(): void
     {
+        abort_if(auth()->user()?->hasRole('viewer'), 403, 'Unauthorized action.');
+
         $student = $this->getStudentRecord();
         if (!$student) return;
 
@@ -131,6 +133,8 @@ trait HasMilestoneManagement
      */
     public function updateMilestoneStatus(int $milestoneId, string $status): void
     {
+        abort_if(auth()->user()?->hasRole('viewer'), 403, 'Unauthorized action.');
+
         $student = $this->getStudentRecord();
         if (!$student) return;
 
@@ -166,6 +170,8 @@ trait HasMilestoneManagement
      */
     public function updateMilestoneName(int $milestoneId, string $name): void
     {
+        abort_if(auth()->user()?->hasRole('viewer'), 403, 'Unauthorized action.');
+
         $student = $this->getStudentRecord();
         if (!$student) return;
 
@@ -192,6 +198,8 @@ trait HasMilestoneManagement
      */
     public function updateMilestoneRemarks(int $milestoneId, ?string $remarks): void
     {
+        abort_if(auth()->user()?->hasRole('viewer'), 403, 'Unauthorized action.');
+
         $student = $this->getStudentRecord();
         if (!$student) return;
 
@@ -216,6 +224,8 @@ trait HasMilestoneManagement
      */
     public function updateMilestoneDate(int $milestoneId, ?string $date): void
     {
+        abort_if(auth()->user()?->hasRole('viewer'), 403, 'Unauthorized action.');
+
         $student = $this->getStudentRecord();
         if (!$student) return;
 
@@ -246,6 +256,8 @@ trait HasMilestoneManagement
      */
     public function addAdHocMilestone(): void
     {
+        abort_if(auth()->user()?->hasRole('viewer'), 403, 'Unauthorized action.');
+
         $student = $this->getStudentRecord();
         if (!$student || empty($this->newMilestoneName)) return;
 
@@ -278,6 +290,8 @@ trait HasMilestoneManagement
 
     public function deleteMilestone(): void
     {
+        abort_if(auth()->user()?->hasRole('viewer'), 403, 'Unauthorized action.');
+
         $student = $this->getStudentRecord();
         if (!$student || !$this->deletingMilestoneId) return;
 

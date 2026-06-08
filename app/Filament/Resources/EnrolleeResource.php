@@ -6,6 +6,7 @@ use App\Filament\Resources\EnrolleeResource\Pages;
 use App\Imports\EnrolleeImport;
 use App\Models\EnrollmentCourse;
 use App\Models\Enrollee;
+use App\Services\StudentSyncService;
 use App\Models\ImportLog;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
@@ -99,11 +100,24 @@ class EnrolleeResource extends Resource
                     ->label('Middle Name')
                     ->sortable()
                     ->searchable(),
-                Tables\Columns\TextColumn::make('degree_program')
-                    ->label('Degree/Program')
+                Tables\Columns\TextColumn::make('program.name')
+                    ->label('Program')
                     ->sortable()
                     ->searchable()
-                    ->wrap(),
+                    ->wrap()
+                    ->default('—'),
+                Tables\Columns\TextColumn::make('programMajor.name')
+                    ->label('Specialization')
+                    ->sortable()
+                    ->searchable()
+                    ->wrap()
+                    ->default('—'),
+                Tables\Columns\TextColumn::make('degree_program')
+                    ->label('Degree/Program (Raw)')
+                    ->sortable()
+                    ->searchable()
+                    ->wrap()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('enrollmentCourses.course_code')
                     ->label('Courses')
                     ->badge()
@@ -132,8 +146,18 @@ class EnrolleeResource extends Resource
                         ->toArray())
                     ->searchable()
                     ->preload(),
+                SelectFilter::make('program_id')
+                    ->label('Program')
+                    ->relationship('program', 'name')
+                    ->searchable()
+                    ->preload(),
+                SelectFilter::make('program_major_id')
+                    ->label('Specialization')
+                    ->relationship('programMajor', 'name')
+                    ->searchable()
+                    ->preload(),
                 SelectFilter::make('degree_program')
-                    ->label('Degree/Program')
+                    ->label('Degree/Program (Raw)')
                     ->options(fn () => Enrollee::distinct()->whereNotNull('degree_program')->where('degree_program', '!=', '')->pluck('degree_program', 'degree_program')->toArray())
                     ->searchable()
                     ->preload(),
@@ -159,16 +183,19 @@ class EnrolleeResource extends Resource
                                 Forms\Components\TextInput::make('courses_enrolled')->label('Courses Enrolled (raw)')->disabled()->columnSpanFull(),
                             ])->columns(3),
                     ]),
-                DeleteAction::make(),
+                DeleteAction::make()
+                    ->visible(fn () => !auth()->user()->hasRole('viewer')),
             ])
             ->toolbarActions([
-                DeleteBulkAction::make(),
+                DeleteBulkAction::make()
+                    ->visible(fn () => !auth()->user()->hasRole('viewer')),
             ])
             ->headerActions([
                 Action::make('uploadExcel')
                     ->label('Upload Excel')
                     ->icon('heroicon-o-arrow-up-tray')
                     ->color('success')
+                    ->visible(fn () => !auth()->user()->hasRole('viewer'))
                     ->schema([
                         Forms\Components\FileUpload::make('file')
                             ->label('Excel File')
@@ -232,6 +259,14 @@ class EnrolleeResource extends Resource
                             $importLog->enrollees()->attach($pivotData);
                         }
 
+                        // Auto-create Student records for new student numbers
+                        $affectedStudentNumbers = Enrollee::whereIn('id', array_keys($pivotData))
+                            ->pluck('student_number')
+                            ->unique()
+                            ->values()
+                            ->toArray();
+                        $studentsCreated = StudentSyncService::syncStudentsFromEnrollees($affectedStudentNumbers);
+
                         $parts = [];
                         if ($import->getImportedCount() > 0) {
                             $parts[] = $import->getImportedCount() . ' imported';
@@ -244,6 +279,9 @@ class EnrolleeResource extends Resource
                         }
                         if ($import->getRejectedCount() + $import->getSkippedBlankCount() > 0) {
                             $parts[] = ($import->getRejectedCount() + $import->getSkippedBlankCount()) . ' rejected';
+                        }
+                        if ($studentsCreated > 0) {
+                            $parts[] = $studentsCreated . ' new student(s) linked';
                         }
 
                         $message = implode(' · ', $parts);

@@ -7,7 +7,7 @@
                     Admitted: {{ $progress['admission_semester'] }}
                 </span>
             @endif
-            @if(isset($progress['student_program_id']) && $progress['student_program_id'] !== null)
+            @if(isset($progress['student_program_id']) && $progress['student_program_id'] !== null && !auth()->user()->hasRole('viewer'))
                 @if($progress['student_program_id'] === 'fallback')
                     <button wire:click="removeFallbackProgram"
                         wire:confirm="Are you sure you want to remove this program assignment?"
@@ -24,10 +24,37 @@
             @endif
         </div>
         <div class="flex items-center gap-6">
-            @if ($progress['gwa'] ?? null)
-                <div class="text-sm text-gray-600 dark:text-gray-400 border-r border-gray-300 dark:border-gray-600 pr-6">
-                    <span class="text-xs font-medium text-gray-500 uppercase tracking-wider mr-2">GWA</span>
-                    <span class="font-bold text-xl" style="color: #1A5C38">{{ number_format($progress['gwa'], 4) }}</span>
+            @if (!auth()->user()->hasRole('viewer'))
+                <div class="text-sm text-gray-600 dark:text-gray-400 border-r border-gray-300 dark:border-gray-600 pr-6 flex items-center gap-2">
+                    <div>
+                        <span class="text-xs font-medium text-gray-500 uppercase tracking-wider mr-2">GWA</span>
+                        @if (auth()->user()->hasRole('super_admin'))
+                            @if ($this->revealGrades)
+                                @if ($progress['gwa'] ?? null)
+                                    <span class="font-bold text-xl font-mono text-success-600">{{ number_format($progress['gwa'], 4) }}</span>
+                                @else
+                                    <span class="font-bold text-sm font-mono text-gray-400" title="No completed courses with grades in curriculum">N/A</span>
+                                @endif
+                            @else
+                                <span class="font-bold text-xl font-mono text-gray-400 tracking-wider">••••</span>
+                            @endif
+                        @else
+                            @if ($progress['gwa'] ?? null)
+                                <span class="font-bold text-xl font-mono" style="color: #1A5C38">{{ number_format($progress['gwa'], 4) }}</span>
+                            @else
+                                <span class="font-bold text-sm font-mono text-gray-400" title="No completed courses with grades in curriculum">N/A</span>
+                            @endif
+                        @endif
+                    </div>
+                    @if (auth()->user()->hasRole('super_admin'))
+                        <button wire:click="toggleGradeVisibility" type="button" class="ml-1 text-gray-400 hover:text-primary-500 transition-colors p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800" title="{{ $this->revealGrades ? 'Hide GWA & Grades' : 'Show GWA & Grades' }}">
+                            @if ($this->revealGrades)
+                                <x-heroicon-m-eye-slash class="w-4 h-4" />
+                            @else
+                                <x-heroicon-m-eye class="w-4 h-4" />
+                            @endif
+                        </button>
+                    @endif
                 </div>
             @endif
             <div class="text-sm text-gray-600 dark:text-gray-400">
@@ -310,8 +337,10 @@
                         <th class="px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400">Course</th>
                         <th class="px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 w-16 text-center">Units</th>
                         <th class="px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 w-20 text-center">Term</th>
-                        <th class="px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 w-48 text-center">Classify As</th>
-                        <th class="px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 w-16 text-center"></th>
+                        @if (!auth()->user()->hasRole('viewer'))
+                            <th class="px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 w-48 text-center">Classify As</th>
+                            <th class="px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 w-16 text-center"></th>
+                        @endif
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
@@ -325,22 +354,24 @@
                             </td>
                             <td class="px-3 py-2 text-center text-gray-500">{{ $uc['units'] ?? '-' }}</td>
                             <td class="px-3 py-2 text-center font-mono text-xs text-gray-400">{{ $uc['term_taken'] ?? '-' }}</td>
-                            <td class="px-3 py-2 text-center">
-                                <select wire:change="classifyUnmatchedCourse({{ $uc['enrollment_id'] }}, $event.target.value)"
-                                    class="text-xs rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 py-1 px-2 text-gray-600 dark:text-gray-400 w-full">
-                                    <option value="">— Select —</option>
-                                    @foreach (['core','prescribed','major','specialization','elective','cognate','seminar','thesis','dissertation','field_study'] as $opt)
-                                        <option value="{{ $opt }}">{{ ucfirst(str_replace('_', ' ', $opt)) }}</option>
-                                    @endforeach
-                                </select>
-                            </td>
-                            <td class="px-3 py-2 text-center">
-                                <button wire:click="dismissUnmatchedCourse({{ $uc['enrollment_id'] }})"
-                                    wire:confirm="Remove this course from records?"
-                                    class="text-gray-400 hover:text-red-500 transition-colors p-1" title="Dismiss">
-                                    <x-heroicon-o-x-mark class="w-4 h-4" />
-                                </button>
-                            </td>
+                            @if (!auth()->user()->hasRole('viewer'))
+                                <td class="px-3 py-2 text-center">
+                                    <select wire:change="classifyUnmatchedCourse({{ $uc['enrollment_id'] }}, $event.target.value)"
+                                        class="text-xs rounded-md border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 py-1 px-2 text-gray-600 dark:text-gray-400 w-full">
+                                        <option value="">— Select —</option>
+                                        @foreach (['core','prescribed','major','specialization','elective','cognate','seminar','thesis','dissertation','field_study'] as $opt)
+                                            <option value="{{ $opt }}">{{ ucfirst(str_replace('_', ' ', $opt)) }}</option>
+                                        @endforeach
+                                    </select>
+                                </td>
+                                <td class="px-3 py-2 text-center">
+                                    <button wire:click="dismissUnmatchedCourse({{ $uc['enrollment_id'] }})"
+                                        wire:confirm="Remove this course from records?"
+                                        class="text-gray-400 hover:text-red-500 transition-colors p-1" title="Dismiss">
+                                        <x-heroicon-o-x-mark class="w-4 h-4" />
+                                    </button>
+                                </td>
+                            @endif
                         </tr>
                     @endforeach
                 </tbody>

@@ -35,13 +35,21 @@
              x-bind:style="'left: ' + minval + '%; right: ' + (100 - maxval) + '%'"></div>
         
         <input type="range" min="0" max="100" step="1" x-model="minval"
-               class="absolute w-full h-2 opacity-0 cursor-pointer pointer-events-none appearance-none"
-               style="-webkit-appearance: none; pointer-events: none; z-index: 20;">
+               class="absolute w-full h-2 cursor-pointer pointer-events-none appearance-none bg-transparent"
+               style="-webkit-appearance: none; pointer-events: none; z-index: 20; background: transparent;">
         <input type="range" min="0" max="100" step="1" x-model="maxval"
-               class="absolute w-full h-2 opacity-0 cursor-pointer pointer-events-none appearance-none"
-               style="-webkit-appearance: none; pointer-events: none; z-index: 21;">
+               class="absolute w-full h-2 cursor-pointer pointer-events-none appearance-none bg-transparent"
+               style="-webkit-appearance: none; pointer-events: none; z-index: 21; background: transparent;">
                
         <style>
+            input[type=range] {
+                -webkit-appearance: none;
+                appearance: none;
+                background: transparent;
+            }
+            input[type=range]:focus {
+                outline: none;
+            }
             input[type=range]::-webkit-slider-thumb {
                 pointer-events: all;
                 width: 16px;
@@ -50,6 +58,25 @@
                 border-radius: 50%;
                 background: #16a34a;
                 cursor: pointer;
+                box-shadow: 0 1px 3px rgba(0,0,0,.3);
+            }
+            input[type=range]::-moz-range-thumb {
+                pointer-events: all;
+                width: 16px;
+                height: 16px;
+                border-radius: 50%;
+                background: #16a34a;
+                cursor: pointer;
+                border: none;
+                box-shadow: 0 1px 3px rgba(0,0,0,.3);
+            }
+            input[type=range]::-webkit-slider-runnable-track {
+                background: transparent;
+                border: none;
+            }
+            input[type=range]::-moz-range-track {
+                background: transparent;
+                border: none;
             }
         </style>
     </div>

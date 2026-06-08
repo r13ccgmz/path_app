@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Filament\Pages;
+use BezhanSalleh\FilamentShield\Traits\HasPageShield;
 
 use App\Models\Enrollee;
 use App\Models\Graduate;
@@ -17,6 +18,7 @@ use Illuminate\Database\Eloquent\Builder;
 
 class MatchReport extends Page implements HasTable
 {
+    use HasPageShield;
     use InteractsWithTable;
 
     protected static string | \UnitEnum | null $navigationGroup = 'Student Management';

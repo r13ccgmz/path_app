@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Filament\Pages;
+use BezhanSalleh\FilamentShield\Traits\HasPageShield;
 
 use App\Imports\GraduateImport;
 use App\Models\Enrollee;
@@ -19,6 +20,7 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class ListOfGraduates extends Page implements HasTable
 {
+    use HasPageShield;
     use InteractsWithTable;
 
     protected static string | \UnitEnum | null $navigationGroup = 'Student Management';

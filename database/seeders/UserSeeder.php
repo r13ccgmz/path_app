@@ -16,7 +16,6 @@ class UserSeeder extends Seeder
             'first_name' => 'Super',
             'last_name' => 'Admin',
             'password' => Hash::make('12345678'),
-            'role' => 'super-admin',
             'account_status' => 'active',
             'created_at' => now(),
             'updated_at' => now(),

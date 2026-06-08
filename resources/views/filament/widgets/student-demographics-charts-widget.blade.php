@@ -34,7 +34,7 @@
             <h3 class="text-base font-bold tracking-tight text-gray-900 dark:text-white mb-1">Gender Profile</h3>
             <p class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-6">Ratio of male to female students.</p>
             
-            <div class="flex-1 flex items-center justify-center min-h-[220px]" x-data="{
+            <div class="flex-1 flex items-center justify-center min-h-[220px]" wire:ignore x-data="{
                 chart: null,
                 isDark: false,
                 init() {
@@ -47,7 +47,16 @@
                         }
                     });
                     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-                    this.waitForChart().then(() => this.renderChart());
+                    this.waitForChart().then(() => {
+                        this.renderChart();
+                        this.$watch('$wire.chartData', (newData) => {
+                            if (this.chart && newData && newData.gender) {
+                                this.chart.data.labels = newData.gender.labels || [];
+                                this.chart.data.datasets[0].data = newData.gender.data || [];
+                                this.chart.update();
+                            }
+                        });
+                    });
                 },
                 waitForChart() {
                     return new Promise((resolve) => {
@@ -59,13 +68,14 @@
                     if (this.chart) this.chart.destroy();
                     const isDarkTheme = document.documentElement.classList.contains('dark');
                     const fontFamily = 'Avenir, Helvetica Neue, Optima, sans-serif';
+                    const chartData = this.$wire.chartData || { gender: { labels: [], data: [], colors: [] } };
                     this.chart = new Chart(this.$refs.canvas, {
                         type: 'pie',
                         data: {
-                            labels: @js($demo['gender']['labels']),
+                            labels: chartData.gender.labels || [],
                             datasets: [{
-                                data: @js($demo['gender']['data']),
-                                backgroundColor: @js($demo['gender']['colors']),
+                                data: chartData.gender.data || [],
+                                backgroundColor: chartData.gender.colors || [],
                                 borderWidth: 2,
                                 borderColor: isDarkTheme ? '#111827' : '#ffffff',
                                 hoverOffset: 6
@@ -95,7 +105,7 @@
             <h3 class="text-base font-bold tracking-tight text-gray-900 dark:text-white mb-1">Academic Load</h3>
             <p class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-6">Full-time (>= {{ $demo['enrollment']['threshold'] }} units) vs Part-time.</p>
             
-            <div class="flex-1 flex items-center justify-center min-h-[220px]" x-data="{
+            <div class="flex-1 flex items-center justify-center min-h-[220px]" wire:ignore x-data="{
                 chart: null,
                 isDark: false,
                 init() {
@@ -108,7 +118,16 @@
                         }
                     });
                     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-                    this.waitForChart().then(() => this.renderChart());
+                    this.waitForChart().then(() => {
+                        this.renderChart();
+                        this.$watch('$wire.chartData', (newData) => {
+                            if (this.chart && newData && newData.enrollment) {
+                                this.chart.data.labels = newData.enrollment.labels || [];
+                                this.chart.data.datasets[0].data = newData.enrollment.data || [];
+                                this.chart.update();
+                            }
+                        });
+                    });
                 },
                 waitForChart() {
                     return new Promise((resolve) => {
@@ -120,13 +139,14 @@
                     if (this.chart) this.chart.destroy();
                     const isDarkTheme = document.documentElement.classList.contains('dark');
                     const fontFamily = 'Avenir, Helvetica Neue, Optima, sans-serif';
+                    const chartData = this.$wire.chartData || { enrollment: { labels: [], data: [], colors: [] } };
                     this.chart = new Chart(this.$refs.canvas, {
                         type: 'pie',
                         data: {
-                            labels: @js($demo['enrollment']['labels']),
+                            labels: chartData.enrollment.labels || [],
                             datasets: [{
-                                data: @js($demo['enrollment']['data']),
-                                backgroundColor: @js($demo['enrollment']['colors']),
+                                data: chartData.enrollment.data || [],
+                                backgroundColor: chartData.enrollment.colors || [],
                                 borderWidth: 2,
                                 borderColor: isDarkTheme ? '#111827' : '#ffffff',
                                 hoverOffset: 6
@@ -156,7 +176,7 @@
             <h3 class="text-base font-bold tracking-tight text-gray-900 dark:text-white mb-1">Nationality</h3>
             <p class="text-xs font-medium text-gray-500 dark:text-gray-400 mb-6">Local vs International.</p>
             
-            <div class="flex-1 flex items-center justify-center min-h-[220px]" x-data="{
+            <div class="flex-1 flex items-center justify-center min-h-[220px]" wire:ignore x-data="{
                 chart: null,
                 isDark: false,
                 init() {
@@ -169,7 +189,16 @@
                         }
                     });
                     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-                    this.waitForChart().then(() => this.renderChart());
+                    this.waitForChart().then(() => {
+                        this.renderChart();
+                        this.$watch('$wire.chartData', (newData) => {
+                            if (this.chart && newData && newData.nationality && newData.nationality.summary) {
+                                this.chart.data.labels = newData.nationality.summary.labels || [];
+                                this.chart.data.datasets[0].data = newData.nationality.summary.data || [];
+                                this.chart.update();
+                            }
+                        });
+                    });
                 },
                 waitForChart() {
                     return new Promise((resolve) => {
@@ -181,13 +210,14 @@
                     if (this.chart) this.chart.destroy();
                     const isDarkTheme = document.documentElement.classList.contains('dark');
                     const fontFamily = 'Avenir, Helvetica Neue, Optima, sans-serif';
+                    const chartData = this.$wire.chartData || { nationality: { summary: { labels: [], data: [], colors: [] } } };
                     this.chart = new Chart(this.$refs.canvas, {
                         type: 'pie',
                         data: {
-                            labels: @js($demo['nationality']['summary']['labels']),
+                            labels: chartData.nationality.summary.labels || [],
                             datasets: [{
-                                data: @js($demo['nationality']['summary']['data']),
-                                backgroundColor: @js($demo['nationality']['summary']['colors']),
+                                data: chartData.nationality.summary.data || [],
+                                backgroundColor: chartData.nationality.summary.colors || [],
                                 borderWidth: 2,
                                 borderColor: isDarkTheme ? '#111827' : '#ffffff',
                                 hoverOffset: 6

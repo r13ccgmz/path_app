@@ -17,7 +17,7 @@ return [
 
     'shield_resource' => [
         'slug' => 'shield/roles',
-        'navigation_group' => 'Users',
+        'navigation_group' => 'Profile',
         'navigation_icon' => 'heroicon-o-shield-check',
         'show_model_path' => true,
         'cluster' => null,
@@ -69,25 +69,17 @@ return [
     'super_admin' => [
         'enabled' => true,
         'name' => 'super_admin',
-        'define_via_gate' => false,
+        'define_via_gate' => true,
         'intercept_gate' => 'before',
     ],
 
-    /*
-    |--------------------------------------------------------------------------
-    | Panel User
-    |--------------------------------------------------------------------------
-    |
-    | When enabled, Shield will create a basic panel user role that can be
-    | assigned to users who should have access to your Filament panels but
-    | don't need any specific permissions beyond basic authentication.
-    |
-    */
-
     'panel_user' => [
-        'enabled' => true,
+        'enabled' => false,
         'name' => 'panel_user',
     ],
+
+
+
 
     /*
     |--------------------------------------------------------------------------

@@ -14,7 +14,9 @@
                             <th class="px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 w-28 text-center">Status</th>
                             <th class="px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 w-28 text-center">Date Completed</th>
                             <th class="px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400">Remarks</th>
+                            @if (!auth()->user()->hasRole('viewer'))
                             <th class="px-3 py-2 text-xs font-medium text-gray-500 dark:text-gray-400 w-20 text-center">Actions</th>
+                            @endif
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
@@ -44,11 +46,15 @@
                                     <td class="px-3 py-2">
                                         <div class="flex flex-col gap-1">
                                             <div class="flex items-center gap-1">
-                                                <input type="text"
-                                                    wire:change="updateMilestoneName({{ $milestone['id'] }}, $event.target.value)"
-                                                    class="w-full text-sm font-medium text-gray-800 dark:text-gray-200 bg-transparent border-transparent hover:border-gray-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 rounded px-1 py-0.5 transition-colors"
-                                                    value="{{ $milestone['name'] }}"
-                                                >
+                                                @if (auth()->user()->hasRole('viewer'))
+                                                    <span class="text-sm font-medium text-gray-800 dark:text-gray-200 px-1 py-0.5">{{ $milestone['name'] }}</span>
+                                                @else
+                                                    <input type="text"
+                                                        wire:change="updateMilestoneName({{ $milestone['id'] }}, $event.target.value)"
+                                                        class="w-full text-sm font-medium text-gray-800 dark:text-gray-200 bg-transparent border-transparent hover:border-gray-300 focus:border-primary-500 focus:ring-1 focus:ring-primary-500 rounded px-1 py-0.5 transition-colors"
+                                                        value="{{ $milestone['name'] }}"
+                                                    >
+                                                @endif
                                                 @if ($milestone['is_from_template'])
                                                     <span class="inline-flex items-center ml-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-primary-50 text-primary-600 ring-1 ring-inset ring-primary-500/10 dark:bg-primary-900/30 dark:text-primary-400 dark:ring-primary-500/20" title="Template milestone">
                                                         Template
@@ -75,44 +81,65 @@
                                         </span>
                                     </td>
                                     <td class="px-3 py-2 text-center">
-                                        <x-filament::input.wrapper>
-                                            <x-filament::input.select
-                                                wire:change="updateMilestoneStatus({{ $milestone['id'] }}, $event.target.value)"
-                                                class="{{ match($milestone['status'] ?? '') {
-                                                        'completed' => 'text-green-700 dark:text-green-400',
-                                                        'in-progress' => 'text-yellow-700 dark:text-yellow-400',
-                                                        'waived' => 'text-blue-700 dark:text-blue-400',
-                                                        'pending' => 'text-orange-600 dark:text-orange-400',
-                                                        default => 'text-gray-400 dark:text-gray-500 italic',
-                                                    } }}"
-                                            >
-                                                <option value="" {{ empty($milestone['status']) || $milestone['status'] === 'not-started' ? 'selected' : '' }}>—</option>
-                                                <option value="pending" {{ ($milestone['status'] ?? '') === 'pending' ? 'selected' : '' }}>Pending</option>
-                                                <option value="in-progress" {{ ($milestone['status'] ?? '') === 'in-progress' ? 'selected' : '' }}>In Progress</option>
-                                                <option value="completed" {{ ($milestone['status'] ?? '') === 'completed' ? 'selected' : '' }}>Completed</option>
-                                                <option value="waived" {{ ($milestone['status'] ?? '') === 'waived' ? 'selected' : '' }}>Waived</option>
-                                            </x-filament::input.select>
-                                        </x-filament::input.wrapper>
+                                        @if (auth()->user()->hasRole('viewer'))
+                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold {{ match($milestone['status'] ?? '') {
+                                                'completed' => 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
+                                                'in-progress' => 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
+                                                'waived' => 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
+                                                'pending' => 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
+                                                default => 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400',
+                                            } }}">
+                                                {{ $milestone['status_label'] ?: '—' }}
+                                            </span>
+                                        @else
+                                            <x-filament::input.wrapper>
+                                                <x-filament::input.select
+                                                    wire:change="updateMilestoneStatus({{ $milestone['id'] }}, $event.target.value)"
+                                                    class="{{ match($milestone['status'] ?? '') {
+                                                            'completed' => 'text-green-700 dark:text-green-400',
+                                                            'in-progress' => 'text-yellow-700 dark:text-yellow-400',
+                                                            'waived' => 'text-blue-700 dark:text-blue-400',
+                                                            'pending' => 'text-orange-600 dark:text-orange-400',
+                                                            default => 'text-gray-400 dark:text-gray-500 italic',
+                                                        } }}"
+                                                >
+                                                    <option value="" {{ empty($milestone['status']) || $milestone['status'] === 'not-started' ? 'selected' : '' }}>—</option>
+                                                    <option value="pending" {{ ($milestone['status'] ?? '') === 'pending' ? 'selected' : '' }}>Pending</option>
+                                                    <option value="in-progress" {{ ($milestone['status'] ?? '') === 'in-progress' ? 'selected' : '' }}>In Progress</option>
+                                                    <option value="completed" {{ ($milestone['status'] ?? '') === 'completed' ? 'selected' : '' }}>Completed</option>
+                                                    <option value="waived" {{ ($milestone['status'] ?? '') === 'waived' ? 'selected' : '' }}>Waived</option>
+                                                </x-filament::input.select>
+                                            </x-filament::input.wrapper>
+                                        @endif
                                     </td>
                                     <td class="px-3 py-2 text-center text-xs text-gray-500 dark:text-gray-400">
-                                        <x-filament::input.wrapper>
-                                            <x-filament::input
-                                                type="date"
-                                                value="{{ $milestone['date_completed'] ? \Carbon\Carbon::parse($milestone['date_completed'])->format('Y-m-d') : '' }}"
-                                                wire:change="updateMilestoneDate({{ $milestone['id'] }}, $event.target.value)"
-                                            />
-                                        </x-filament::input.wrapper>
+                                        @if (auth()->user()->hasRole('viewer'))
+                                            <span class="text-sm text-gray-900 dark:text-gray-100">{{ $milestone['date_completed'] ?: '—' }}</span>
+                                        @else
+                                            <x-filament::input.wrapper>
+                                                <x-filament::input
+                                                    type="date"
+                                                    value="{{ $milestone['date_completed'] ? \Carbon\Carbon::parse($milestone['date_completed'])->format('Y-m-d') : '' }}"
+                                                    wire:change="updateMilestoneDate({{ $milestone['id'] }}, $event.target.value)"
+                                                />
+                                            </x-filament::input.wrapper>
+                                        @endif
                                     </td>
                                     <td class="px-3 py-2">
-                                        <x-filament::input.wrapper>
-                                            <x-filament::input
-                                                type="text"
-                                                value="{{ $milestone['remarks'] ?? '' }}"
-                                                wire:blur="updateMilestoneRemarks({{ $milestone['id'] }}, $event.target.value)"
-                                                placeholder="Add remarks..."
-                                            />
-                                        </x-filament::input.wrapper>
+                                        @if (auth()->user()->hasRole('viewer'))
+                                            <span class="text-sm text-gray-900 dark:text-gray-100">{{ $milestone['remarks'] ?: '—' }}</span>
+                                        @else
+                                            <x-filament::input.wrapper>
+                                                <x-filament::input
+                                                    type="text"
+                                                    value="{{ $milestone['remarks'] ?? '' }}"
+                                                    wire:blur="updateMilestoneRemarks({{ $milestone['id'] }}, $event.target.value)"
+                                                    placeholder="Add remarks..."
+                                                />
+                                            </x-filament::input.wrapper>
+                                        @endif
                                     </td>
+                                    @if (!auth()->user()->hasRole('viewer'))
                                     <td class="px-3 py-2 text-center">
                                         <div class="flex items-center justify-center gap-1">
                                             <button wire:click="confirmDeleteMilestone({{ $milestone['id'] }})" class="text-gray-400 hover:text-red-500 transition-colors p-1" title="Delete">
@@ -120,6 +147,7 @@
                                             </button>
                                         </div>
                                     </td>
+                                    @endif
                                 </tr>
                             @endif
                         @endforeach
@@ -133,6 +161,7 @@
         @endif
 
         {{-- Add Milestone Toggle + Form --}}
+        @if (!auth()->user()->hasRole('viewer'))
         <div class="pt-3 border-t border-gray-200 dark:border-gray-700">
             @if ($showMilestoneForm)
                 <div class="flex items-end gap-3">
@@ -174,5 +203,6 @@
                 </div>
             @endif
         </div>
+        @endif
     </x-filament::section>
 @endif

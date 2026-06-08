@@ -749,7 +749,7 @@
                     @endphp
                     <tr>
                         <td>{{ $record->term_id }}</td>
-                        <td>{{ $record->degree_program }}</td>
+                        <td>{{ $record->program_display }}</td>
                         <td>{{ $record->courses_enrolled }}</td>
                         <td class="text-center">{{ $record->total_units }}</td>
                         <td class="text-center"><span style="color: {{ $ftColor }}; font-weight: 600; font-size: 9px;">{{ $ftLabel }}</span></td>

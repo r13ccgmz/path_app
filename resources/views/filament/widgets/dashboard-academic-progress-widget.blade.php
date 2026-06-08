@@ -11,7 +11,7 @@
         </div>
         
         <div class="flex-1 flex flex-col sm:flex-row items-center justify-center gap-6 lg:gap-8 w-full h-full">
-            <div class="relative w-full max-w-[200px] aspect-square flex items-center justify-center">
+            <div class="relative w-full max-w-[200px] aspect-square flex items-center justify-center" wire:ignore>
                 <div class="w-full h-full"
                     x-data="{
                         chart: null,
@@ -26,26 +26,36 @@
                                 }
                             });
                             observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-                            this.waitForChart().then(() => this.renderChart());
+                            this.waitForChart().then(() => {
+                                this.renderChart();
+                                this.$watch('$wire.chartData', (newData) => {
+                                    if (this.chart && newData) {
+                                        this.chart.data.labels = newData.labels || [];
+                                        this.chart.data.datasets[0].data = newData.data || [];
+                                        this.chart.update();
+                                    }
+                                });
+                            });
                         },
                         waitForChart() {
                             return new Promise((resolve) => {
-                                if (window.Chart) return resolve();
-                                const check = setInterval(() => { if (window.Chart) { clearInterval(check); resolve(); } }, 50);
+                                  if (window.Chart) return resolve();
+                                  const check = setInterval(() => { if (window.Chart) { clearInterval(check); resolve(); } }, 50);
                             });
                         },
                         renderChart() {
                             if (this.chart) this.chart.destroy();
                             const isDarkTheme = document.documentElement.classList.contains('dark');
                             const fontFamily = 'Avenir, Helvetica Neue, Optima, sans-serif';
+                            const chartData = this.$wire.chartData || { labels: [], data: [], colors: [], total: 0 };
                             
                             this.chart = new Chart(this.$refs.canvas, {
                                 type: 'doughnut',
                                 data: {
-                                    labels: @js($progress['labels']),
+                                    labels: chartData.labels || [],
                                     datasets: [{
-                                        data: @js($progress['data']),
-                                        backgroundColor: @js($progress['colors']),
+                                        data: chartData.data || [],
+                                        backgroundColor: chartData.colors || [],
                                         borderWidth: 2,
                                         borderColor: isDarkTheme ? '#111827' : '#ffffff',
                                         hoverOffset: 6
@@ -74,13 +84,13 @@
                                 },
                                 plugins: [{
                                     id: 'centerText',
-                                    beforeDraw: function(chart) {
+                                    beforeDraw: (chart) => {
                                         var width = chart.width, height = chart.height, ctx = chart.ctx;
                                         ctx.restore();
                                         var fontSize = (height / 100).toFixed(2);
                                         ctx.font = 'bold ' + fontSize + 'em ' + fontFamily;
                                         ctx.textBaseline = 'middle';
-                                        var text = '{{ $progress['total'] }}',
+                                        var text = this.$wire.chartData.total !== undefined ? this.$wire.chartData.total : '0',
                                             textX = Math.round((width - ctx.measureText(text).width) / 2),
                                             textY = height / 2 - 8;
                                         ctx.fillStyle = isDarkTheme ? '#ffffff' : '#111827';

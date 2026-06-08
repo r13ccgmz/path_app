@@ -14,7 +14,17 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
+use Livewire\Attributes\Url;
 use Filament\Support\Icons\Heroicon;
+use Filament\Forms\Components\Toggle;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\Repeater;
+use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Grid;
+use Filament\Forms\Get;
+use Filament\Schemas\Components\Section;
+use App\Models\ProgramMajor;
+use App\Models\CognateField;
 use BackedEnum;
 use UnitEnum;
 
@@ -35,9 +45,14 @@ class CurriculumMap extends Page
 
     protected string $view = 'filament.pages.curriculum-map';
 
+    #[Url(as: 'program')]
     public ?int $selectedProgramId = null;
 
     public string $viewMode = 'timeline'; // 'timeline' or 'table'
+
+    public ?string $addCourseDefaultType = null;
+
+    public ?int $editingMappingId = null;
 
     // ── Memoization cache (cleared after mutations) ──
     protected ?array $_cachedCurriculum = null;
@@ -64,12 +79,17 @@ class CurriculumMap extends Page
 
     public function mount(): void
     {
-        $this->selectedProgramId = Program::first()?->id;
+        if (!$this->selectedProgramId) {
+            $this->selectedProgramId = Program::first()?->id;
+        }
     }
 
     public function updatedSelectedProgramId(): void
     {
         $this->resetComputedCache();
+        $this->addCourseDefaultType = null;
+        $this->editingMappingId = null;
+        $this->dispatch('program-switched');
     }
 
     public function getPrograms(): \Illuminate\Support\Collection
@@ -142,7 +162,6 @@ class CurriculumMap extends Page
                 'description' => $mapping->description,
                 'notes' => $notes ?: null,
                 'cognate_field' => $mapping->cognateField?->name,
-                'year_level' => $mapping->year_level,
                 'is_required' => $mapping->is_required,
                 'ms_conditional' => $msConditional,
                 'choice_group' => null,
@@ -172,7 +191,7 @@ class CurriculumMap extends Page
             return $posA - $posB;
         });
 
-        // Inject empty course types from program requirements so sections appear even when empty
+        // Inject empty course types from program requirements and configured min units so sections appear even when empty
         $typeKeywords = [
             'core' => 'Core',
             'prescribed' => 'Prescribed',
@@ -187,6 +206,17 @@ class CurriculumMap extends Page
         ];
         $requirements = $this->getProgramRequirements();
         $program = $this->getSelectedProgram();
+
+        if ($program && !empty($program->min_units_per_type)) {
+            foreach ($program->min_units_per_type as $typeLabel => $val) {
+                if ($val !== null && $val > 0) {
+                    if (!isset($grouped[$typeLabel])) {
+                        $grouped[$typeLabel] = ['General' => []];
+                    }
+                }
+            }
+        }
+
         foreach ($requirements as $req) {
             $text = strtolower($req->requirement_text);
             foreach ($typeKeywords as $kw => $typeLabel) {
@@ -286,10 +316,6 @@ class CurriculumMap extends Page
     public function getTotalUnits(): ?int
     {
         $program = $this->getSelectedProgram();
-        // Prefer override, then stored total, then auto-sum
-        if ($program?->total_units_override) {
-            return $program->total_units_override;
-        }
         if ($program?->total_units_required) {
             return $program->total_units_required;
         }
@@ -311,6 +337,7 @@ class CurriculumMap extends Page
     {
         ProgramCourse::find($mappingId)?->delete();
         $this->resetComputedCache();
+        $this->dispatch('curriculum-updated');
     }
 
     /**
@@ -359,11 +386,12 @@ class CurriculumMap extends Page
         ]);
 
         $this->resetComputedCache();
+        $this->dispatch('curriculum-updated');
 
         // When transitioning from empty → populated, morphdom cannot reconcile
         // the DOM change (Filament section → timeline). Force a hard browser reload.
         if ($wasEmpty) {
-            $this->js('setTimeout(() => window.location.reload(), 100)');
+            $this->js('setTimeout(() => window.location.href = "' . static::getUrl(['program' => $this->selectedProgramId]) . '", 100)');
         }
     }
 
@@ -384,7 +412,6 @@ class CurriculumMap extends Page
             ->pluck('course_id');
 
         return $this->_cachedAvailableCourses = Course::whereNotIn('id', $mappedIds)
-            ->where('is_active', true)
             ->orderBy('course_code')
             ->get()
             ->map(fn ($c) => [
@@ -481,9 +508,6 @@ class CurriculumMap extends Page
         return $this->_cachedMinUnits = $minUnits;
     }
 
-    /**
-     * Update the min units for a specific course type (inline edit from curriculum map).
-     */
     public function updateMinUnits(string $courseType, ?int $units): void
     {
         $program = Program::find($this->selectedProgramId);
@@ -491,6 +515,8 @@ class CurriculumMap extends Page
 
         // Start from current overrides or parsed values
         $current = $program->min_units_per_type ?? $this->getMinUnitsPerType();
+        $minUnitsSum = array_sum($current);
+        $hasCustomTotal = $program->total_units_required !== $minUnitsSum;
 
         if ($units === null || $units === 0) {
             unset($current[$courseType]);
@@ -500,17 +526,15 @@ class CurriculumMap extends Page
 
         // Auto-sum the total (only if no manual override)
         $updateData = ['min_units_per_type' => $current];
-        if ($program->total_units_override === null) {
+        if (!$hasCustomTotal) {
             $updateData['total_units_required'] = array_sum($current);
         }
 
         $program->update($updateData);
         $this->resetComputedCache();
+        $this->dispatch('curriculum-updated');
     }
 
-    /**
-     * Update the total required units override (inline edit from Total Required pill).
-     */
     public function updateTotalOverride(?int $units): void
     {
         $program = Program::find($this->selectedProgramId);
@@ -520,18 +544,17 @@ class CurriculumMap extends Page
             // Clear override — revert to auto-sum
             $minUnits = $this->getMinUnitsPerType();
             $program->update([
-                'total_units_override' => null,
                 'total_units_required' => array_sum($minUnits),
             ]);
         } else {
             // Set manual override
             $program->update([
-                'total_units_override' => $units,
                 'total_units_required' => $units,
             ]);
         }
 
         $this->resetComputedCache();
+        $this->dispatch('curriculum-updated');
     }
 
     /**
@@ -603,9 +626,13 @@ class CurriculumMap extends Page
             }
         }
 
+        $minUnits = $program->min_units_per_type ?? [];
+        $minUnitsSum = array_sum($minUnits);
+        $hasCustomTotal = $program->total_units_required !== $minUnitsSum;
+
         // Write the freshly parsed values into the DB
         $updateData = ['min_units_per_type' => $parsed];
-        if ($program->total_units_override === null) {
+        if (!$hasCustomTotal) {
             $updateData['total_units_required'] = array_sum($parsed);
         }
         $program->update($updateData);
@@ -645,9 +672,11 @@ class CurriculumMap extends Page
 
         // Append total summary
         $program = $this->getSelectedProgram();
-        $totalOverride = $program?->total_units_override;
-        $totalRequired = $totalOverride ?? $program?->total_units_required;
-        $hasOverride = $totalOverride !== null;
+        $totalRequired = $program?->total_units_required;
+
+        $minUnits = $program?->min_units_per_type ?? [];
+        $minUnitsSum = array_sum($minUnits);
+        $hasOverride = $program && ($totalRequired !== $minUnitsSum);
 
         $stats[] = [
             'type' => '__total__',
@@ -722,89 +751,661 @@ class CurriculumMap extends Page
 
 
 
-    /**
-     * Filament Action: Create a new program via native modal.
-     */
+
+
+    protected function getHeaderActions(): array
+    {
+        return [];
+    }
+
     public function createProgramAction(): Action
     {
         return Action::make('createProgram')
             ->label('Create Program')
-            ->icon('heroicon-o-plus')
-            ->color('primary')
             ->modalHeading('Create New Program')
-            ->modalWidth('md')
+            ->modalWidth('xl')
+            ->fillForm(fn () => [
+                'code' => null,
+                'name' => null,
+                'degree_level' => null,
+                'is_active' => true,
+                'max_residency_years' => null,
+                'description' => null,
+                'has_custom_total' => false,
+                'total_units_required' => null,
+                'min_units_Core' => null,
+                'min_units_Prescribed' => null,
+                'min_units_Major' => null,
+                'min_units_Specialization' => null,
+                'min_units_Cognate' => null,
+                'min_units_Elective' => null,
+                'min_units_Seminar' => null,
+                'min_units_Thesis' => null,
+                'min_units_Dissertation' => null,
+                'min_units_FieldStudy' => null,
+                'majors' => [],
+                'requirements' => [],
+            ])
             ->form([
-                TextInput::make('code')
-                    ->label('Program Code')
-                    ->placeholder('e.g., PhD-DVST')
-                    ->maxLength(20)
-                    ->required(),
-                TextInput::make('name')
-                    ->label('Program Name')
-                    ->placeholder('e.g., Doctor of Philosophy in Development Studies')
-                    ->required(),
-                Select::make('degree_level')
-                    ->label('Degree Level')
-                    ->options(
-                        collect(DegreeLevel::cases())
-                            ->mapWithKeys(fn (DegreeLevel $level) => [$level->value => $level->label()])
-                            ->toArray()
-                    )
-                    ->default('master')
-                    ->required(),
+                Section::make('Program Details')
+                    ->collapsible()
+                    ->columns(6)
+                    ->schema([
+                        TextInput::make('code')
+                            ->label('Program Code')
+                            ->required()
+                            ->maxLength(20)
+                            ->unique(table: 'programs', column: 'code')
+                            ->placeholder('e.g., PhD-DVST')
+                            ->columnSpan(2),
+                        Select::make('degree_level')
+                            ->label('Degree Level')
+                            ->options(DegreeLevel::class)
+                            ->required()
+                            ->columnSpan(2),
+                        Toggle::make('is_active')
+                            ->label('Active')
+                            ->default(true)
+                            ->inline(false)
+                            ->columnSpan(2),
+                        TextInput::make('name')
+                            ->label('Program Name')
+                            ->required()
+                            ->maxLength(255)
+                            ->placeholder('e.g., Doctor of Philosophy in Development Studies')
+                            ->columnSpan(6),
+                        TextInput::make('max_residency_years')
+                            ->label('Max Residency (years)')
+                            ->numeric()
+                            ->minValue(1)
+                            ->placeholder('e.g., 5')
+                            ->columnSpan(3),
+                        Textarea::make('description')
+                            ->label('Description')
+                            ->rows(3)
+                            ->columnSpan(6),
+                    ]),
+                Section::make('Specializations / Majors')
+                    ->collapsible()
+                    ->collapsed()
+                    ->schema([
+                        Repeater::make('majors')
+                            ->hiddenLabel()
+                            ->grid(2)
+                            ->schema([
+                                TextInput::make('name')
+                                    ->label('Specialization Name')
+                                    ->required()
+                                    ->maxLength(255)
+                                    ->placeholder('e.g., Local Governance and Development'),
+                                TextInput::make('description')
+                                    ->label('Description')
+                                    ->maxLength(255)
+                                    ->placeholder('e.g., Optional description'),
+                            ])
+                            ->columnSpanFull(),
+                    ]),
+                Section::make('Minimum Units Required per Course Type')
+                    ->description('Set the minimum required units for each course type.')
+                    ->collapsible()
+                    ->collapsed()
+                    ->columns(2)
+                    ->schema([
+                        TextInput::make('min_units_Core')->label('Core')->numeric()->placeholder('e.g., 0'),
+                        TextInput::make('min_units_Prescribed')->label('Prescribed')->numeric()->placeholder('e.g., 0'),
+                        TextInput::make('min_units_Major')->label('Major')->numeric()->placeholder('e.g., 0'),
+                        TextInput::make('min_units_Specialization')->label('Specialization')->numeric()->placeholder('e.g., 0'),
+                        TextInput::make('min_units_Cognate')->label('Cognate')->numeric()->placeholder('e.g., 0'),
+                        TextInput::make('min_units_Elective')->label('Elective')->numeric()->placeholder('e.g., 0'),
+                        TextInput::make('min_units_Seminar')->label('Seminar')->numeric()->placeholder('e.g., 0'),
+                        TextInput::make('min_units_Thesis')->label('Thesis')->numeric()->placeholder('e.g., 0'),
+                        TextInput::make('min_units_Dissertation')->label('Dissertation')->numeric()->placeholder('e.g., 0'),
+                        TextInput::make('min_units_FieldStudy')->label('Field Study')->numeric()->placeholder('e.g., 0'),
+                        Toggle::make('has_custom_total')
+                            ->label('Set Total Units Manually')
+                            ->default(false)
+                            ->live()
+                            ->columnSpan(2),
+                        TextInput::make('total_units_required')
+                            ->label('Total Units Required')
+                            ->numeric()
+                            ->required(fn ($get) => $get('has_custom_total'))
+                            ->visible(fn ($get) => $get('has_custom_total'))
+                            ->columnSpan(2),
+                    ]),
+                Section::make('Requirements')
+                    ->collapsible()
+                    ->collapsed()
+                    ->schema([
+                        Repeater::make('requirements')
+                            ->hiddenLabel()
+                            ->simple(
+                                TextInput::make('requirement_text')
+                                    ->placeholder('e.g., Minimum of 14 units of Core Courses')
+                                    ->required()
+                            )
+                            ->columnSpanFull(),
+                    ]),
             ])
             ->action(function (array $data): void {
-                $level = DegreeLevel::tryFrom($data['degree_level']);
-                if (! $level || ! $data['code'] || ! $data['name']) return;
+                $minUnits = [
+                    'Core' => (int)($data['min_units_Core'] ?? 0),
+                    'Prescribed' => (int)($data['min_units_Prescribed'] ?? 0),
+                    'Major' => (int)($data['min_units_Major'] ?? 0),
+                    'Specialization' => (int)($data['min_units_Specialization'] ?? 0),
+                    'Cognate' => (int)($data['min_units_Cognate'] ?? 0),
+                    'Elective' => (int)($data['min_units_Elective'] ?? 0),
+                    'Seminar' => (int)($data['min_units_Seminar'] ?? 0),
+                    'Thesis' => (int)($data['min_units_Thesis'] ?? 0),
+                    'Dissertation' => (int)($data['min_units_Dissertation'] ?? 0),
+                    'Field Study' => (int)($data['min_units_FieldStudy'] ?? 0),
+                ];
+                $minUnits = array_filter($minUnits, fn($v) => $v > 0);
 
-                if (Program::where('code', $data['code'])->exists()) {
-                    Notification::make()
-                        ->title('Duplicate program code')
-                        ->body("A program with code \"{$data['code']}\" already exists.")
-                        ->danger()
-                        ->send();
-                    return;
-                }
+                $totalUnitsRequired = !empty($data['has_custom_total'])
+                    ? (int)($data['total_units_required'] ?? 0)
+                    : array_sum($minUnits);
 
                 $program = Program::create([
                     'code' => $data['code'],
                     'name' => $data['name'],
-                    'degree_level' => $level->value,
-                    'is_active' => true,
+                    'degree_level' => $data['degree_level'],
+                    'is_active' => $data['is_active'],
+                    'max_residency_years' => $data['max_residency_years'] ? (int)$data['max_residency_years'] : null,
+                    'description' => $data['description'] ?? null,
+                    'min_units_per_type' => $minUnits,
+                    'total_units_required' => $totalUnitsRequired,
                 ]);
+
+                if (!empty($data['majors'])) {
+                    foreach ($data['majors'] as $majorData) {
+                        $program->majors()->create([
+                            'name' => $majorData['name'],
+                            'description' => $majorData['description'] ?? null,
+                        ]);
+                    }
+                }
+
+                if (!empty($data['requirements'])) {
+                    foreach ($data['requirements'] as $index => $req) {
+                        $text = is_array($req) ? ($req['requirement_text'] ?? '') : $req;
+                        if (filled($text)) {
+                            $program->requirements()->create([
+                                'requirement_text' => $text,
+                                'sort_order' => $index,
+                            ]);
+                        }
+                    }
+                }
 
                 $this->selectedProgramId = $program->id;
                 $this->resetComputedCache();
+                $this->dispatch('program-switched');
 
                 Notification::make()
-                    ->title('Program created')
-                    ->body("Program \"{$program->code}\" has been created.")
                     ->success()
+                    ->title('Program Created')
+                    ->body("Successfully created {$program->code}.")
                     ->send();
             });
     }
 
-    /**
-     * Quick-create a new program from the Curriculum Map page.
-     * @deprecated Use createProgramAction() instead.
-     */
-    public function createProgram(string $code, string $name, string $degreeLevel): void
+    public function editProgramSettingsAction(): Action
     {
-        $level = DegreeLevel::tryFrom($degreeLevel);
-        if (! $level || ! $code || ! $name) return;
+        return Action::make('editProgramSettings')
+            ->label('Edit Program Settings')
+            ->modalHeading('Program Settings')
+            ->modalWidth('xl')
+            ->record(fn () => $this->getSelectedProgram())
+            ->fillForm(function () {
+                $program = $this->getSelectedProgram();
+                if (! $program) return [];
 
-        // Prevent duplicate codes
-        if (Program::where('code', $code)->exists()) return;
+                $minUnits = $program->min_units_per_type ?? [];
+                
+                $majors = $program->majors->map(fn($m) => [
+                    'id' => $m->id,
+                    'name' => $m->name,
+                    'description' => $m->description,
+                ])->toArray();
 
-        $program = Program::create([
-            'code' => $code,
-            'name' => $name,
-            'degree_level' => $level->value,
-            'is_active' => true,
-        ]);
+                $requirements = $program->requirements->sortBy('sort_order')->map(fn($r) => $r->requirement_text)->toArray();
 
-        $this->selectedProgramId = $program->id;
-        $this->resetComputedCache();
+                $minUnitsSum = array_sum([
+                    (int)($minUnits['Core'] ?? 0),
+                    (int)($minUnits['Prescribed'] ?? 0),
+                    (int)($minUnits['Major'] ?? 0),
+                    (int)($minUnits['Specialization'] ?? 0),
+                    (int)($minUnits['Cognate'] ?? 0),
+                    (int)($minUnits['Elective'] ?? 0),
+                    (int)($minUnits['Seminar'] ?? 0),
+                    (int)($minUnits['Thesis'] ?? 0),
+                    (int)($minUnits['Dissertation'] ?? 0),
+                    (int)($minUnits['Field Study'] ?? 0),
+                ]);
+
+                $hasCustomTotal = $program->total_units_required !== $minUnitsSum;
+
+                return [
+                    'code' => $program->code,
+                    'name' => $program->name,
+                    'degree_level' => $program->degree_level?->value,
+                    'is_active' => $program->is_active,
+                    'max_residency_years' => $program->max_residency_years,
+                    'description' => $program->description,
+                    'has_custom_total' => $hasCustomTotal,
+                    'total_units_required' => $program->total_units_required,
+                    'min_units_Core' => $minUnits['Core'] ?? null,
+                    'min_units_Prescribed' => $minUnits['Prescribed'] ?? null,
+                    'min_units_Major' => $minUnits['Major'] ?? null,
+                    'min_units_Specialization' => $minUnits['Specialization'] ?? null,
+                    'min_units_Cognate' => $minUnits['Cognate'] ?? null,
+                    'min_units_Elective' => $minUnits['Elective'] ?? null,
+                    'min_units_Seminar' => $minUnits['Seminar'] ?? null,
+                    'min_units_Thesis' => $minUnits['Thesis'] ?? null,
+                    'min_units_Dissertation' => $minUnits['Dissertation'] ?? null,
+                    'min_units_FieldStudy' => $minUnits['Field Study'] ?? null,
+                    'majors' => $majors,
+                    'requirements' => $requirements,
+                ];
+            })
+            ->form([
+                Section::make('Program Details')
+                    ->collapsible()
+                    ->columns(6)
+                    ->schema([
+                        TextInput::make('code')
+                            ->label('Program Code')
+                            ->required()
+                            ->maxLength(20)
+                            ->unique(table: 'programs', column: 'code', ignoreRecord: true)
+                            ->placeholder('e.g., PhD-DVST')
+                            ->columnSpan(2),
+                        Select::make('degree_level')
+                            ->label('Degree Level')
+                            ->options(DegreeLevel::class)
+                            ->required()
+                            ->columnSpan(2),
+                        Toggle::make('is_active')
+                            ->label('Active')
+                            ->default(true)
+                            ->inline(false)
+                            ->columnSpan(2),
+                        TextInput::make('name')
+                            ->label('Program Name')
+                            ->required()
+                            ->maxLength(255)
+                            ->placeholder('e.g., Doctor of Philosophy in Development Studies')
+                            ->columnSpan(6),
+                        TextInput::make('max_residency_years')
+                            ->label('Max Residency (years)')
+                            ->numeric()
+                            ->minValue(1)
+                            ->placeholder('e.g., 5')
+                            ->columnSpan(3),
+                        Textarea::make('description')
+                            ->label('Description')
+                            ->rows(3)
+                            ->columnSpan(6),
+                    ]),
+                Section::make('Specializations / Majors')
+                    ->collapsible()
+                    ->collapsed()
+                    ->schema([
+                        Repeater::make('majors')
+                            ->hiddenLabel()
+                            ->grid(2)
+                            ->schema([
+                                Hidden::make('id'),
+                                TextInput::make('name')
+                                    ->label('Specialization Name')
+                                    ->required()
+                                    ->maxLength(255)
+                                    ->placeholder('e.g., Local Governance and Development'),
+                                TextInput::make('description')
+                                    ->label('Description')
+                                    ->maxLength(255)
+                                    ->placeholder('e.g., Optional description'),
+                            ])
+                            ->columnSpanFull(),
+                    ]),
+                Section::make('Minimum Units Required per Course Type')
+                    ->description('Set the minimum required units for each course type.')
+                    ->collapsible()
+                    ->collapsed()
+                    ->columns(2)
+                    ->schema([
+                        TextInput::make('min_units_Core')->label('Core')->numeric()->placeholder('e.g., 0'),
+                        TextInput::make('min_units_Prescribed')->label('Prescribed')->numeric()->placeholder('e.g., 0'),
+                        TextInput::make('min_units_Major')->label('Major')->numeric()->placeholder('e.g., 0'),
+                        TextInput::make('min_units_Specialization')->label('Specialization')->numeric()->placeholder('e.g., 0'),
+                        TextInput::make('min_units_Cognate')->label('Cognate')->numeric()->placeholder('e.g., 0'),
+                        TextInput::make('min_units_Elective')->label('Elective')->numeric()->placeholder('e.g., 0'),
+                        TextInput::make('min_units_Seminar')->label('Seminar')->numeric()->placeholder('e.g., 0'),
+                        TextInput::make('min_units_Thesis')->label('Thesis')->numeric()->placeholder('e.g., 0'),
+                        TextInput::make('min_units_Dissertation')->label('Dissertation')->numeric()->placeholder('e.g., 0'),
+                        TextInput::make('min_units_FieldStudy')->label('Field Study')->numeric()->placeholder('e.g., 0'),
+                        Toggle::make('has_custom_total')
+                            ->label('Set Total Units Manually')
+                            ->live()
+                            ->columnSpan(2),
+                        TextInput::make('total_units_required')
+                            ->label('Total Units Required')
+                            ->numeric()
+                            ->required(fn ($get) => $get('has_custom_total'))
+                            ->visible(fn ($get) => $get('has_custom_total'))
+                            ->columnSpan(2),
+                    ]),
+                Section::make('Requirements')
+                    ->collapsible()
+                    ->collapsed()
+                    ->schema([
+                        Repeater::make('requirements')
+                            ->hiddenLabel()
+                            ->simple(
+                                TextInput::make('requirement_text')
+                                    ->placeholder('e.g., Minimum of 14 units of Core Courses')
+                                    ->required()
+                            )
+                            ->columnSpanFull(),
+                    ]),
+            ])
+            ->action(function (array $data): void {
+                $program = $this->getSelectedProgram();
+                if (! $program) return;
+
+                $minUnits = [
+                    'Core' => (int)($data['min_units_Core'] ?? 0),
+                    'Prescribed' => (int)($data['min_units_Prescribed'] ?? 0),
+                    'Major' => (int)($data['min_units_Major'] ?? 0),
+                    'Specialization' => (int)($data['min_units_Specialization'] ?? 0),
+                    'Cognate' => (int)($data['min_units_Cognate'] ?? 0),
+                    'Elective' => (int)($data['min_units_Elective'] ?? 0),
+                    'Seminar' => (int)($data['min_units_Seminar'] ?? 0),
+                    'Thesis' => (int)($data['min_units_Thesis'] ?? 0),
+                    'Dissertation' => (int)($data['min_units_Dissertation'] ?? 0),
+                    'Field Study' => (int)($data['min_units_FieldStudy'] ?? 0),
+                ];
+                $minUnits = array_filter($minUnits, fn($v) => $v > 0);
+
+                $totalUnitsRequired = !empty($data['has_custom_total'])
+                    ? (int)($data['total_units_required'] ?? 0)
+                    : array_sum($minUnits);
+
+                $program->update([
+                    'code' => $data['code'],
+                    'name' => $data['name'],
+                    'degree_level' => $data['degree_level'],
+                    'is_active' => $data['is_active'],
+                    'max_residency_years' => $data['max_residency_years'] ? (int)$data['max_residency_years'] : null,
+                    'description' => $data['description'] ?? null,
+                    'min_units_per_type' => $minUnits,
+                    'total_units_required' => $totalUnitsRequired,
+                ]);
+
+                // Sync Majors (preserve IDs)
+                $majorsData = $data['majors'] ?? [];
+                $keepIds = [];
+                foreach ($majorsData as $majorData) {
+                    if (!empty($majorData['id'])) {
+                        $major = $program->majors()->find($majorData['id']);
+                        if ($major) {
+                            $major->update([
+                                'name' => $majorData['name'],
+                                'description' => $majorData['description'] ?? null,
+                            ]);
+                            $keepIds[] = $major->id;
+                        }
+                    } else {
+                        $newMajor = $program->majors()->create([
+                            'name' => $majorData['name'],
+                            'description' => $majorData['description'] ?? null,
+                        ]);
+                        $keepIds[] = $newMajor->id;
+                    }
+                }
+                $program->majors()->whereNotIn('id', $keepIds)->delete();
+
+                // Recreate requirements
+                $program->requirements()->delete();
+                if (!empty($data['requirements'])) {
+                    foreach ($data['requirements'] as $index => $req) {
+                        $text = is_array($req) ? ($req['requirement_text'] ?? '') : $req;
+                        if (filled($text)) {
+                            $program->requirements()->create([
+                                'requirement_text' => $text,
+                                'sort_order' => $index,
+                            ]);
+                        }
+                    }
+                }
+
+                $this->resetComputedCache();
+                $this->dispatch('curriculum-updated');
+
+                Notification::make()
+                    ->success()
+                    ->title('Program Settings Updated')
+                    ->body("Successfully updated settings for {$program->code}.")
+                    ->send();
+            });
+    }
+
+    public function addCourseMappingAction(): Action
+    {
+        return Action::make('addCourseMapping')
+            ->label('Add Course')
+            ->modalHeading('Add Course to Curriculum')
+            ->modalWidth('2xl')
+            ->fillForm(fn () => [
+                'course_type' => $this->addCourseDefaultType,
+                'is_required' => true,
+            ])
+            ->form([
+                Select::make('course_id')
+                    ->label('Course')
+                    ->options(fn () => $this->getAvailableCourses()->pluck('label', 'id'))
+                    ->required()
+                    ->searchable()
+                    ->preload(),
+                Select::make('course_type')
+                    ->label('Course Type')
+                    ->options(CourseType::class)
+                    ->required()
+                    ->live(),
+                Select::make('program_major_id')
+                    ->label('Specialization / Major')
+                    ->options(fn () => ProgramMajor::where('program_id', $this->selectedProgramId)->pluck('name', 'id'))
+                    ->nullable()
+                    ->searchable()
+                    ->preload(),
+                Select::make('cognate_field_id')
+                    ->label('Cognate Field')
+                    ->options(fn () => CognateField::pluck('name', 'id'))
+                    ->searchable()
+                    ->preload()
+                    ->hidden(fn ($get) => ($get('course_type') instanceof CourseType ? $get('course_type')->value : $get('course_type')) !== 'cognate')
+                    ->createOptionForm([
+                        TextInput::make('name')
+                            ->required()
+                            ->maxLength(255)
+                    ])
+                    ->createOptionUsing(fn (array $data) => CognateField::create($data)->id),
+                Select::make('semester_offered')
+                    ->label('Semester Offered')
+                    ->options([
+                        'First Semester' => 'First Semester',
+                        'Second Semester' => 'Second Semester',
+                        'First and Second Semester' => 'First and Second Semester',
+                        'Midyear' => 'Midyear',
+                        'First Semester, Second Semester, and Midyear' => 'First Semester, Second Semester, and Midyear',
+                    ])
+                    ->searchable()
+                    ->preload()
+                    ->nullable(),
+                TextInput::make('units')
+                    ->label('Units Override')
+                    ->numeric()
+                    ->minValue(0)
+                    ->placeholder('Leave blank to use course default units'),
+                Toggle::make('is_required')
+                    ->label('Required')
+                    ->default(true),
+                TextInput::make('prerequisite_text')
+                    ->label('Prerequisites')
+                    ->maxLength(500),
+                Textarea::make('notes')
+                    ->label('Notes')
+                    ->rows(2)
+                    ->columnSpanFull(),
+            ])
+            ->action(function (array $data): void {
+                if (! $this->selectedProgramId) return;
+
+                // Check if already mapped
+                $exists = ProgramCourse::where('program_id', $this->selectedProgramId)
+                    ->where('course_id', $data['course_id'])
+                    ->where('course_type', $data['course_type'])
+                    ->when(!empty($data['program_major_id']), fn($q) => $q->where('program_major_id', $data['program_major_id']))
+                    ->exists();
+
+                if ($exists) {
+                    Notification::make()
+                        ->warning()
+                        ->title('Course Already Mapped')
+                        ->body('This course is already mapped to the selected program with these settings.')
+                        ->send();
+                    return;
+                }
+
+                $wasEmpty = ProgramCourse::where('program_id', $this->selectedProgramId)->count() === 0;
+
+                ProgramCourse::create([
+                    'program_id' => $this->selectedProgramId,
+                    'course_id' => $data['course_id'],
+                    'course_type' => $data['course_type'],
+                    'program_major_id' => $data['program_major_id'] ?? null,
+                    'cognate_field_id' => $data['cognate_field_id'] ?? null,
+                    'units' => $data['units'] ? (int)$data['units'] : null,
+                    'semester_offered' => $data['semester_offered'] ?? null,
+                    'is_required' => (bool)($data['is_required'] ?? true),
+                    'prerequisite_text' => $data['prerequisite_text'] ?? null,
+                    'notes' => $data['notes'] ?? null,
+                ]);
+
+                $this->resetComputedCache();
+                $this->dispatch('curriculum-updated');
+
+                Notification::make()
+                    ->success()
+                    ->title('Course Added')
+                    ->body('Successfully mapped course to the curriculum.')
+                    ->send();
+
+                if ($wasEmpty) {
+                    $this->js('setTimeout(() => window.location.href = "' . static::getUrl(['program' => $this->selectedProgramId]) . '", 100)');
+                }
+            });
+    }
+
+    public function editCourseMappingAction(): Action
+    {
+        return Action::make('editCourseMapping')
+            ->label('Edit Course Mapping')
+            ->modalHeading('Edit Course Mapping')
+            ->modalWidth('2xl')
+            ->record(fn () => ProgramCourse::find($this->editingMappingId))
+            ->fillForm(function (ProgramCourse $record) {
+                return [
+                    'course_id' => $record->course_id,
+                    'course_type' => $record->course_type?->value,
+                    'program_major_id' => $record->program_major_id,
+                    'cognate_field_id' => $record->cognate_field_id,
+                    'units' => $record->units,
+                    'semester_offered' => $record->semester_offered,
+                    'is_required' => $record->is_required,
+                    'prerequisite_text' => $record->prerequisite_text,
+                    'notes' => $record->notes,
+                ];
+            })
+            ->form([
+                Select::make('course_id')
+                    ->label('Course')
+                    ->options(fn (ProgramCourse $record) => $record->course ? [$record->course->id => "{$record->course->course_code} — {$record->course->course_name}"] : [])
+                    ->disabled()
+                    ->required(),
+                Select::make('course_type')
+                    ->label('Course Type')
+                    ->options(CourseType::class)
+                    ->required()
+                    ->live(),
+                Select::make('program_major_id')
+                    ->label('Specialization / Major')
+                    ->options(fn () => ProgramMajor::where('program_id', $this->selectedProgramId)->pluck('name', 'id'))
+                    ->nullable()
+                    ->searchable()
+                    ->preload(),
+                Select::make('cognate_field_id')
+                    ->label('Cognate Field')
+                    ->options(fn () => CognateField::pluck('name', 'id'))
+                    ->searchable()
+                    ->preload()
+                    ->hidden(fn ($get) => ($get('course_type') instanceof CourseType ? $get('course_type')->value : $get('course_type')) !== 'cognate')
+                    ->createOptionForm([
+                        TextInput::make('name')
+                            ->required()
+                            ->maxLength(255)
+                    ])
+                    ->createOptionUsing(fn (array $data) => CognateField::create($data)->id),
+                Select::make('semester_offered')
+                    ->label('Semester Offered')
+                    ->options([
+                        'First Semester' => 'First Semester',
+                        'Second Semester' => 'Second Semester',
+                        'First and Second Semester' => 'First and Second Semester',
+                        'Midyear' => 'Midyear',
+                        'First Semester, Second Semester, and Midyear' => 'First Semester, Second Semester, and Midyear',
+                    ])
+                    ->searchable()
+                    ->preload()
+                    ->nullable(),
+                TextInput::make('units')
+                    ->label('Units Override')
+                    ->numeric()
+                    ->minValue(0)
+                    ->placeholder('Leave blank to use course default units'),
+                Toggle::make('is_required')
+                    ->label('Required')
+                    ->default(true),
+                TextInput::make('prerequisite_text')
+                    ->label('Prerequisites')
+                    ->maxLength(500),
+                Textarea::make('notes')
+                    ->label('Notes')
+                    ->rows(2)
+                    ->columnSpanFull(),
+            ])
+            ->action(function (array $data, ProgramCourse $record): void {
+                $record->update([
+                    'course_type' => $data['course_type'],
+                    'program_major_id' => $data['program_major_id'] ?? null,
+                    'cognate_field_id' => $data['cognate_field_id'] ?? null,
+                    'units' => $data['units'] ? (int)$data['units'] : null,
+                    'semester_offered' => $data['semester_offered'] ?? null,
+                    'is_required' => (bool)($data['is_required'] ?? true),
+                    'prerequisite_text' => $data['prerequisite_text'] ?? null,
+                    'notes' => $data['notes'] ?? null,
+                ]);
+
+                $this->resetComputedCache();
+                $this->dispatch('curriculum-updated');
+
+                Notification::make()
+                    ->success()
+                    ->title('Mapping Updated')
+                    ->body('Successfully updated course mapping.')
+                    ->send();
+            });
     }
 
     /**
@@ -880,6 +1481,7 @@ class CurriculumMap extends Page
         $req->update(['requirement_text' => trim($text)]);
         $this->syncMinUnitsFromRequirements();
         $this->resetComputedCache();
+        $this->dispatch('curriculum-updated');
     }
 
     /**
@@ -893,6 +1495,7 @@ class CurriculumMap extends Page
         $req->delete();
         $this->syncMinUnitsFromRequirements();
         $this->resetComputedCache();
+        $this->dispatch('curriculum-updated');
     }
 
     /**

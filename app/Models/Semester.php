@@ -5,9 +5,13 @@ namespace App\Models;
 use App\Enums\SemesterPeriod;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 class Semester extends Model
 {
+    use LogsActivity;
+
     protected $fillable = [
         'academic_year_id',
         'semester_period',
@@ -25,6 +29,17 @@ class Semester extends Model
             'end_date' => 'date',
             'is_current' => 'boolean',
         ];
+    }
+
+    // ── Activity Log ──
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logFillable()
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->setDescriptionForEvent(fn(string $eventName) => "Semester record {$eventName}");
     }
 
     // ── Relationships ──

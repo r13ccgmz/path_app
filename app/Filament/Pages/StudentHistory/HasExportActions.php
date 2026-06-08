@@ -20,7 +20,7 @@ trait HasExportActions
         }
 
         $studentInfo = $this->studentInfo;
-        $records = Enrollee::where('student_number', $this->studentNumber)->orderBy('term_id')->get();
+        $records = Enrollee::with(['program', 'programMajor', 'term.academicYear'])->where('student_number', $this->studentNumber)->orderBy('term_id')->get();
         $academicProgress = $this->getAllAcademicProgress();
         $milestones = $this->getStudentMilestones() ?? [];
         $academicOutputs = $this->getAcademicOutputs() ?? [];
@@ -57,7 +57,7 @@ trait HasExportActions
         }
 
         $studentInfo = $this->studentInfo;
-        $records = Enrollee::where('student_number', $this->studentNumber)->orderBy('term_id')->get();
+        $records = Enrollee::with(['program', 'programMajor', 'term.academicYear'])->where('student_number', $this->studentNumber)->orderBy('term_id')->get();
         $academicProgress = $this->getAllAcademicProgress();
         $milestones = $this->getStudentMilestones() ?? [];
         $academicOutputs = $this->getAcademicOutputs() ?? [];

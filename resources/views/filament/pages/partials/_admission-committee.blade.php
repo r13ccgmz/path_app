@@ -25,11 +25,37 @@
 
     @if (!empty($studentInfo['committee_members']))
     <div class="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+        @php
+            $adviserCount = collect($studentInfo['committee_members'])
+                ->filter(fn($cm) => ($cm['role'] ?? '') === 'Adviser')
+                ->count();
+        @endphp
+
+        @if ($adviserCount > 1)
+            <div class="flex items-center gap-2 px-4 py-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50 rounded-xl text-amber-700 dark:text-amber-400 text-sm mb-4">
+                <x-heroicon-m-exclamation-triangle class="w-5 h-5 shrink-0 text-amber-500" />
+                <div>
+                    <span class="font-bold block">Advisory Conflict: Multiple Primary Advisers</span>
+                    <span class="text-xs text-amber-600 dark:text-amber-500">This student currently has {{ $adviserCount }} active Primary Advisers. Please update their roles to resolve this tracking conflict.</span>
+                </div>
+            </div>
+        @endif
+
         <p class="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">Advisory Committee</p>
         <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
             @php
-                $advisers = collect($studentInfo['committee_members'])->filter(fn($cm) => in_array($cm['role'] ?? '', ['Adviser', 'Former Adviser']))->all();
-                $others = collect($studentInfo['committee_members'])->filter(fn($cm) => !in_array($cm['role'] ?? '', ['Adviser', 'Former Adviser']))->all();
+                $adviserPriority = ['Adviser' => 1, 'Co-Adviser' => 2, 'Former Adviser' => 3];
+                $otherPriority = ['Chair' => 1, 'Co-Chair' => 2, 'Cognate' => 3, 'Major' => 4, 'Minor' => 5, 'Member' => 6];
+
+                $advisers = collect($studentInfo['committee_members'])
+                    ->filter(fn($cm) => in_array($cm['role'] ?? '', ['Adviser', 'Co-Adviser', 'Former Adviser']))
+                    ->sortBy(fn($cm) => $adviserPriority[$cm['role'] ?? ''] ?? 99)
+                    ->all();
+
+                $others = collect($studentInfo['committee_members'])
+                    ->filter(fn($cm) => !in_array($cm['role'] ?? '', ['Adviser', 'Co-Adviser', 'Former Adviser']))
+                    ->sortBy(fn($cm) => $otherPriority[$cm['role'] ?? ''] ?? 99)
+                    ->all();
             @endphp
             
             @foreach ($advisers as $adv)
@@ -37,6 +63,8 @@
                     <span class="w-28 text-sm font-semibold text-primary-600 dark:text-primary-400">
                         @if(($adv['role'] ?? '') === 'Adviser')
                             <x-heroicon-o-star class="w-3.5 h-3.5 inline -mt-0.5 mr-0.5" />Primary Adviser:
+                        @elseif(($adv['role'] ?? '') === 'Co-Adviser')
+                            <x-heroicon-o-users class="w-3.5 h-3.5 inline -mt-0.5 mr-0.5" />Co-Adviser:
                         @else
                             Former Adviser:
                         @endif

@@ -42,7 +42,7 @@ class StudentSummaryExport extends StringValueBinder implements FromArray, WithT
 
         $student = \App\Models\Student::with(['program', 'adviser', 'admissionSemester'])->where('student_number', $this->studentNumber)->first();
         $graduates = \App\Models\Graduate::with('term.academicYear')->where('student_number', $this->studentNumber)->orderBy('id', 'asc')->get();
-        $records = Enrollee::with('term.academicYear')->where('student_number', $this->studentNumber)->orderBy('term_id')->get();
+        $records = Enrollee::with(['term.academicYear', 'program', 'programMajor'])->where('student_number', $this->studentNumber)->orderBy('term_id')->get();
 
         $currentRow = 1;
 
@@ -144,7 +144,7 @@ class StudentSummaryExport extends StringValueBinder implements FromArray, WithT
                 $this->studentNumber,
                 $this->studentInfo['name'] ?? '-',
                 $record->term?->label ?? $record->term_id ?? '-',
-                $record->degree_program ?? '-',
+                $record->program_display,
                 $record->courses_enrolled ?? '-',
                 strval($units),
                 $enrollmentStatus,

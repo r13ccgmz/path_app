@@ -2,7 +2,9 @@
 
 namespace App\Enums;
 
-enum DegreeLevel: string
+use Filament\Support\Contracts\HasLabel;
+
+enum DegreeLevel: string implements HasLabel
 {
     case Master = 'master';
     case MasterOfScience = 'master_of_science';
@@ -15,5 +17,10 @@ enum DegreeLevel: string
             self::MasterOfScience => 'Master of Science',
             self::Doctorate => 'Doctorate',
         };
+    }
+
+    public function getLabel(): ?string
+    {
+        return $this->label();
     }
 }

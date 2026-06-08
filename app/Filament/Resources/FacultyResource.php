@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Enums\AcademicRank;
 use App\Filament\Resources\FacultyResource\Pages;
 use App\Models\Faculty;
 use Filament\Actions\DeleteAction;
@@ -18,9 +19,9 @@ class FacultyResource extends Resource
 {
     protected static ?string $model = Faculty::class;
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-user-group';
-    protected static string|\UnitEnum|null $navigationGroup = 'System';
+    protected static string|\UnitEnum|null $navigationGroup = 'Faculty Management';
     protected static ?int $navigationSort = 1;
-    protected static ?string $navigationLabel = 'Faculty';
+    protected static ?string $navigationLabel = 'Faculty Directory';
     protected static ?string $modelLabel = 'Faculty';
     protected static ?string $pluralModelLabel = 'Faculty';
     protected static ?string $slug = 'faculty';
@@ -42,7 +43,7 @@ class FacultyResource extends Resource
     public static function getGlobalSearchResultDetails(\Illuminate\Database\Eloquent\Model $record): array
     {
         return array_filter([
-            'Designation' => $record->designation,
+            'Academic Rank' => $record->designation,
             'Unit' => $record->unit?->name,
         ]);
     }
@@ -55,9 +56,23 @@ class FacultyResource extends Resource
     public static function form(Schema $schema): Schema
     {
         return $schema
-            ->components([
-                \Filament\Schemas\Components\Section::make('Personal Information')
-                    ->schema([
+            ->components(static::getModalFormSchema());
+    }
+
+    /**
+     * Shared form schema used by both the resource form and modal create/edit actions.
+     */
+    public static function getModalFormSchema(): array
+    {
+        return [
+            \Filament\Schemas\Components\Section::make('Personal Information')
+                ->schema([
+                    Forms\Components\Toggle::make('is_external')
+                        ->label('External / Panel Member')
+                        ->helperText('Enable for non-faculty committee members')
+                        ->default(false)
+                        ->live()
+                        ->columnSpanFull(),
                         Forms\Components\TextInput::make('last_name')
                             ->label('Last Name')
                             ->required()
@@ -88,52 +103,15 @@ class FacultyResource extends Resource
                             ->label('Contact Number')
                             ->tel()
                             ->maxLength(20),
-                    ])->columns(2),
+                ])->columns(2),
 
-                \Filament\Schemas\Components\Section::make('Employment Information')
-                    ->schema([
+            \Filament\Schemas\Components\Section::make('Employment Information')
+                ->schema([
                         Forms\Components\Select::make('designation')
-                            ->label('Designation (Current Position)')
-                            ->options([
-                                'Instructor 1' => 'Instructor 1',
-                                'Instructor 2' => 'Instructor 2',
-                                'Instructor 3' => 'Instructor 3',
-                                'Instructor 4' => 'Instructor 4',
-                                'Instructor 5' => 'Instructor 5',
-                                'Instructor 6' => 'Instructor 6',
-                                'Instructor 7' => 'Instructor 7',
-                                'Teaching Associate' => 'Teaching Associate',
-                                'Teaching Fellow' => 'Teaching Fellow',
-                                'Assistant Professor 1' => 'Assistant Professor 1',
-                                'Assistant Professor 2' => 'Assistant Professor 2',
-                                'Assistant Professor 3' => 'Assistant Professor 3',
-                                'Assistant Professor 4' => 'Assistant Professor 4',
-                                'Assistant Professor 5' => 'Assistant Professor 5',
-                                'Assistant Professor 6' => 'Assistant Professor 6',
-                                'Assistant Professor 7' => 'Assistant Professor 7',
-                                'Associate Professor 1' => 'Associate Professor 1',
-                                'Associate Professor 2' => 'Associate Professor 2',
-                                'Associate Professor 3' => 'Associate Professor 3',
-                                'Associate Professor 4' => 'Associate Professor 4',
-                                'Associate Professor 5' => 'Associate Professor 5',
-                                'Associate Professor 6' => 'Associate Professor 6',
-                                'Associate Professor 7' => 'Associate Professor 7',
-                                'Professor 1' => 'Professor 1',
-                                'Professor 2' => 'Professor 2',
-                                'Professor 3' => 'Professor 3',
-                                'Professor 4' => 'Professor 4',
-                                'Professor 5' => 'Professor 5',
-                                'Professor 6' => 'Professor 6',
-                                'Professor 7' => 'Professor 7',
-                                'Professor 8' => 'Professor 8',
-                                'Professor 9' => 'Professor 9',
-                                'Professor 10' => 'Professor 10',
-                                'Professor 11' => 'Professor 11',
-                                'Professor 12' => 'Professor 12',
-                                'University Professor' => 'University Professor',
-                            ])
+                            ->label('Academic Rank')
+                            ->options(AcademicRank::options())
                             ->searchable()
-                            ->placeholder('Select designation...')
+                            ->placeholder('Select academic rank...')
                             ->allowHtml(false),
                         Forms\Components\Select::make('employment_status')
                             ->label('Employment Status')
@@ -167,10 +145,12 @@ class FacultyResource extends Resource
                             ])
                             ->default('active')
                             ->required(),
-                    ])->columns(2),
+                ])->columns(2)
+                ->collapsible()
+                ->collapsed(fn (\Filament\Schemas\Components\Utilities\Get $get) => $get('is_external')),
 
-                \Filament\Schemas\Components\Section::make('Educational Attainment')
-                    ->schema([
+            \Filament\Schemas\Components\Section::make('Educational Attainment')
+                ->schema([
                         Forms\Components\Select::make('highest_degree')
                             ->label('Highest Educational Attainment')
                             ->options([
@@ -197,10 +177,12 @@ class FacultyResource extends Resource
                                 'doctorate' => 'Doctorate',
                             ])
                             ->visible(fn (\Filament\Schemas\Components\Utilities\Get $get) => $get('is_pursuing_postgrad')),
-                    ])->columns(2),
+                ])->columns(2)
+                ->collapsible()
+                ->collapsed(fn (\Filament\Schemas\Components\Utilities\Get $get) => $get('is_external')),
 
-                \Filament\Schemas\Components\Section::make('Specializations')
-                    ->schema([
+            \Filament\Schemas\Components\Section::make('Specializations')
+                ->schema([
                         Forms\Components\Select::make('specializations')
                             ->label('Areas of Specialization')
                             ->relationship('specializations', 'name')
@@ -213,15 +195,14 @@ class FacultyResource extends Resource
                                     ->required()
                                     ->maxLength(255),
                             ]),
-                    ])->collapsible(),
-            ]);
+                ])->collapsible()->collapsed(),
+        ];
     }
 
     public static function table(Table $table): Table
     {
         return $table
             ->defaultSort('last_name')
-            ->modifyQueryUsing(fn (\Illuminate\Database\Eloquent\Builder $query) => $query->where('is_external', false))
             ->columns([
                 Tables\Columns\TextColumn::make('full_name')
                     ->label('Name')
@@ -229,7 +210,7 @@ class FacultyResource extends Resource
                     ->sortable(['last_name'])
                     ->searchable(['last_name', 'first_name', 'middle_name']),
                 Tables\Columns\TextColumn::make('designation')
-                    ->label('Designation')
+                    ->label('Academic Rank')
                     ->sortable()
                     ->searchable()
                     ->wrap()
@@ -323,6 +304,16 @@ class FacultyResource extends Resource
                     ->sortable()
                     ->alignCenter()
                     ->toggleable(isToggledHiddenByDefault: true),
+                Tables\Columns\IconColumn::make('is_external')
+                    ->label('Type')
+                    ->boolean()
+                    ->trueIcon('heroicon-o-arrow-top-right-on-square')
+                    ->falseIcon('heroicon-o-building-office-2')
+                    ->trueColor('warning')
+                    ->falseColor('primary')
+                    ->tooltip(fn (Faculty $record) => $record->is_external ? 'External / Panel' : 'Faculty')
+                    ->alignCenter()
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('employment_status')
@@ -365,7 +356,11 @@ class FacultyResource extends Resource
                 Tables\Filters\TrashedFilter::make(),
             ])
             ->recordActions([
-                EditAction::make(),
+                EditAction::make()
+                    ->modalHeading(fn (Faculty $record) => "Edit: {$record->full_name}")
+                    ->modalWidth('3xl')
+                    ->form(static::getModalFormSchema())
+                    ->visible(fn () => !auth()->user()->hasRole('viewer')),
                 \Filament\Actions\Action::make('manage_account')
                     ->label(fn (Faculty $record): string =>
                         \App\Models\User::where('faculty_id', $record->id)->exists()
@@ -471,7 +466,7 @@ class FacultyResource extends Resource
                                         ->label('Roles')
                                         ->multiple()
                                         ->options(\Spatie\Permission\Models\Role::pluck('name', 'name')->toArray())
-                                        ->default(['panel_user']),
+                                        ->default(['viewer']),
                                 ])->columns(2),
                         ];
                     })
@@ -529,11 +524,14 @@ class FacultyResource extends Resource
                         \App\Models\User::where('faculty_id', $record->id)->exists()
                             ? 'Update Account'
                             : 'Create Account'
-                    ),
-                DeleteAction::make(),
+                    )
+                    ->visible(fn () => !auth()->user()->hasRole('viewer')),
+                DeleteAction::make()
+                    ->visible(fn () => !auth()->user()->hasRole('viewer')),
             ])
             ->toolbarActions([
-                DeleteBulkAction::make(),
+                DeleteBulkAction::make()
+                    ->visible(fn () => !auth()->user()->hasRole('viewer')),
             ])
             ->paginated([10, 25, 50, 100]);
     }
@@ -547,8 +545,6 @@ class FacultyResource extends Resource
     {
         return [
             'index' => Pages\ListFaculty::route('/'),
-            'create' => Pages\CreateFaculty::route('/create'),
-            'edit' => Pages\EditFaculty::route('/{record}/edit'),
         ];
     }
 }

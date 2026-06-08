@@ -10,9 +10,11 @@
                 <p class="text-sm text-gray-500 dark:text-gray-400">This student does not have graduation information recorded yet.</p>
             </div>
         </div>
+        @if (!auth()->user()->hasRole('viewer'))
         <x-filament::button wire:click="mountAction('addGraduateInfo')" color="success" icon="heroicon-o-check-badge" size="md" class="w-full sm:w-auto shrink-0">
             Add Graduation Info
         </x-filament::button>
+        @endif
     </div>
 @endif
 
@@ -20,12 +22,14 @@
     @foreach ($studentInfo['graduation_records'] as $gradRecord)
     <x-filament::section icon="heroicon-o-check-badge" icon-color="success" class="!bg-emerald-50/50 dark:!bg-emerald-900/20 !border-emerald-200 dark:!border-emerald-800" collapsible>
         <x-slot name="heading">Graduation Info{{ !empty($gradRecord['program_name']) ? ' — ' . $gradRecord['program_name'] : (count($studentInfo['graduation_records']) > 1 ? ' — ' . ($gradRecord['degree'] ?? '') : '') }}</x-slot>
+        @if (!auth()->user()->hasRole('viewer'))
         <x-slot name="afterHeader">
             <div class="flex items-center gap-2">
                 <x-filament::button wire:click="startEditGraduation({{ $gradRecord['id'] }})" color="warning" icon="heroicon-o-pencil-square" size="xs">Edit</x-filament::button>
                 <x-filament::button wire:click="startDeleteGraduation({{ $gradRecord['id'] }})" color="danger" icon="heroicon-o-trash" size="xs">Remove</x-filament::button>
             </div>
         </x-slot>
+        @endif
         <div class="grid grid-cols-1 md:grid-cols-3 gap-x-12 gap-y-6">
             <div>
                 <span class="block text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">Semester Graduated</span>

@@ -4,9 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 class AcademicOutputCommittee extends Model
 {
+    use LogsActivity;
+
     protected $table = 'academic_output_committee';
 
     protected $fillable = [
@@ -24,6 +28,17 @@ class AcademicOutputCommittee extends Model
         return [
             'appointed_date' => 'date',
         ];
+    }
+
+    // ── Activity Log ──
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logFillable()
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->setDescriptionForEvent(fn(string $eventName) => "Academic output committee {$eventName}");
     }
 
     // ── Relationships ──

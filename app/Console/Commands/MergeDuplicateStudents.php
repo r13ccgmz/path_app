@@ -83,9 +83,10 @@ class MergeDuplicateStudents extends Command
                     // 1. Move Programs
                     $programs = StudentProgram::where('student_id', $other->id)->get();
                     foreach ($programs as $prog) {
-                        // Ensure the primary doesn't already have this program
+                        // Ensure the primary doesn't already have this program+major combo
                         $exists = StudentProgram::where('student_id', $primary->id)
                             ->where('program_id', $prog->program_id)
+                            ->where('program_major_id', $prog->program_major_id)
                             ->exists();
                         if (!$exists) {
                             $prog->update(['student_id' => $primary->id]);
@@ -109,6 +110,7 @@ class MergeDuplicateStudents extends Command
                                 if ($oldSp) {
                                     $newSp = StudentProgram::where('student_id', $primary->id)
                                         ->where('program_id', $oldSp->program_id)
+                                        ->where('program_major_id', $oldSp->program_major_id)
                                         ->first();
                                     if ($newSp) {
                                         $newSpId = $newSp->id;

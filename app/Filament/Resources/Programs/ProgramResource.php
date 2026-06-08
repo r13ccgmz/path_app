@@ -2,12 +2,8 @@
 
 namespace App\Filament\Resources\Programs;
 
-use App\Filament\Resources\Programs\Pages\CreateProgram;
-use App\Filament\Resources\Programs\Pages\EditProgram;
 use App\Filament\Resources\Programs\Pages\ListPrograms;
 use App\Filament\Resources\Programs\Schemas\ProgramForm;
-use App\Filament\Resources\Programs\RelationManagers\ProgramMajorsRelationManager;
-use App\Filament\Resources\Programs\RelationManagers\ProgramRequirementsRelationManager;
 use App\Filament\Resources\Programs\Tables\ProgramsTable;
 use App\Models\Program;
 use BackedEnum;
@@ -40,18 +36,13 @@ class ProgramResource extends Resource
 
     public static function getRelations(): array
     {
-        return [
-            ProgramMajorsRelationManager::class,
-            ProgramRequirementsRelationManager::class,
-        ];
+        return [];
     }
 
     public static function getPages(): array
     {
         return [
             'index' => ListPrograms::route('/'),
-            'create' => CreateProgram::route('/create'),
-            'edit' => EditProgram::route('/{record}/edit'),
         ];
     }
 }

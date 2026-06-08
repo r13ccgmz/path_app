@@ -23,6 +23,8 @@ trait HasEnrollmentManagement
      */
     public function toggleEnrollmentStatus(int $enrollmentId): void
     {
+        abort_if(auth()->user()?->hasRole('viewer'), 403, 'Unauthorized action.');
+
         $student = $this->getStudentRecord();
         if (!$student) return;
 
@@ -56,6 +58,8 @@ trait HasEnrollmentManagement
      */
     public function confirmDeleteEnrollment(int $enrollmentId): void
     {
+        abort_if(auth()->user()?->hasRole('viewer'), 403, 'Unauthorized action.');
+
         $this->deletingEnrollmentId = $enrollmentId;
     }
 
@@ -101,6 +105,8 @@ trait HasEnrollmentManagement
 
     public function deleteEnrollment(): void
     {
+        abort_if(auth()->user()?->hasRole('viewer'), 403, 'Unauthorized action.');
+
         $student = $this->getStudentRecord();
         if (!$student || !$this->deletingEnrollmentId) return;
 
@@ -181,6 +187,8 @@ trait HasEnrollmentManagement
      */
     public function classifyUnmatchedCourse(int $enrollmentId, ?string $courseType): void
     {
+        abort_if(auth()->user()?->hasRole('viewer'), 403, 'Unauthorized action.');
+
         if (empty($courseType)) {
             return;
         }
@@ -239,6 +247,8 @@ trait HasEnrollmentManagement
      */
     public function dismissUnmatchedCourse(int $enrollmentId): void
     {
+        abort_if(auth()->user()?->hasRole('viewer'), 403, 'Unauthorized action.');
+
         $student = $this->getStudentRecord();
         if (!$student) return;
 
@@ -355,6 +365,8 @@ trait HasEnrollmentManagement
      */
     public function updateEnrollmentField(int $enrollmentId, string $field, ?string $value): void
     {
+        abort_if(auth()->user()?->hasRole('viewer'), 403, 'Unauthorized action.');
+
         $student = $this->getStudentRecord();
         if (!$student) return;
 
@@ -496,6 +508,8 @@ trait HasEnrollmentManagement
 
     public function deleteProgram(int $studentProgramId)
     {
+        abort_if(auth()->user()?->hasRole('viewer'), 403, 'Unauthorized action.');
+
         $sp = \App\Models\StudentProgram::find($studentProgramId);
         if (!$sp) return;
 
@@ -578,6 +592,8 @@ trait HasEnrollmentManagement
      */
     public function removeFallbackProgram(): void
     {
+        abort_if(auth()->user()?->hasRole('viewer'), 403, 'Unauthorized action.');
+
         $student = $this->getStudentRecord();
         if (!$student || !$student->program_id) return;
 

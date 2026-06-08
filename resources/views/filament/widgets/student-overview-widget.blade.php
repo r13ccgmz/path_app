@@ -25,7 +25,7 @@
             @endif
 
             <!-- Stat Bar — compact horizontal metrics -->
-            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3">
                 <div class="rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-white/10 shadow-sm p-4 flex flex-col items-center text-center">
                     <span class="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Total</span>
                     <span class="text-xl font-bold text-gray-900 dark:text-white" style="font-family: Avenir, 'Helvetica Neue', Optima, sans-serif;">{{ number_format($overview['total']) }}</span>
@@ -41,6 +41,10 @@
                 <div class="rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-white/10 shadow-sm p-4 flex flex-col items-center text-center">
                     <span class="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">On Leave</span>
                     <span class="text-xl font-bold text-orange-600 dark:text-orange-400" style="font-family: Avenir, 'Helvetica Neue', Optima, sans-serif;">{{ number_format($overview['onLeave']) }}</span>
+                </div>
+                <div class="rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-white/10 shadow-sm p-4 flex flex-col items-center text-center">
+                    <span class="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Inactive</span>
+                    <span class="text-xl font-bold text-red-600 dark:text-red-400" style="font-family: Avenir, 'Helvetica Neue', Optima, sans-serif;">{{ number_format($overview['inactive'] ?? 0) }}</span>
                 </div>
                 <div class="rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-white/10 shadow-sm p-4 flex flex-col items-center text-center">
                     <span class="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1">Avg. Age</span>
@@ -60,7 +64,7 @@
                 </div>
 
                 <div class="flex flex-col sm:flex-row items-center justify-center gap-8 lg:gap-12 w-full min-h-[260px]">
-                    <div class="relative w-full max-w-[220px] aspect-square flex items-center justify-center">
+                    <div class="relative w-full max-w-[220px] aspect-square flex items-center justify-center" wire:ignore>
                         <div class="w-full h-full"
                             x-data="{
                                 chart: null,
@@ -75,7 +79,16 @@
                                         }
                                     });
                                     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
-                                    this.waitForChart().then(() => this.renderChart());
+                                    this.waitForChart().then(() => {
+                                        this.renderChart();
+                                        this.$watch('$wire.chartData', (newData) => {
+                                            if (this.chart && newData && newData.chart) {
+                                                this.chart.data.labels = newData.chart.labels || [];
+                                                this.chart.data.datasets[0].data = newData.chart.data || [];
+                                                this.chart.update();
+                                            }
+                                        });
+                                    });
                                 },
                                 waitForChart() {
                                     return new Promise((resolve) => {
@@ -87,14 +100,15 @@
                                     if (this.chart) this.chart.destroy();
                                     const isDarkTheme = document.documentElement.classList.contains('dark');
                                     const fontFamily = 'Avenir, Helvetica Neue, Optima, sans-serif';
+                                    const chartData = this.$wire.chartData || { chart: { labels: [], data: [], colors: [] }, total: 0 };
 
                                     this.chart = new Chart(this.$refs.canvas, {
                                         type: 'doughnut',
                                         data: {
-                                            labels: @js($overview['chart']['labels']),
+                                            labels: chartData.chart.labels || [],
                                             datasets: [{
-                                                data: @js($overview['chart']['data']),
-                                                backgroundColor: @js($overview['chart']['colors']),
+                                                data: chartData.chart.data || [],
+                                                backgroundColor: chartData.chart.colors || [],
                                                 borderWidth: 2,
                                                 borderColor: isDarkTheme ? '#111827' : '#ffffff',
                                                 hoverOffset: 6
@@ -123,13 +137,13 @@
                                         },
                                         plugins: [{
                                             id: 'centerText',
-                                            beforeDraw: function(chart) {
+                                            beforeDraw: (chart) => {
                                                 var width = chart.width, height = chart.height, ctx = chart.ctx;
                                                 ctx.restore();
                                                 var fontSize = (height / 100).toFixed(2);
                                                 ctx.font = 'bold ' + fontSize + 'em ' + fontFamily;
                                                 ctx.textBaseline = 'middle';
-                                                var text = '{{ $overview['total'] }}',
+                                                var text = this.$wire.chartData.total !== undefined ? this.$wire.chartData.total : '0',
                                                     textX = Math.round((width - ctx.measureText(text).width) / 2),
                                                     textY = height / 2 - 8;
                                                 ctx.fillStyle = isDarkTheme ? '#ffffff' : '#111827';
@@ -199,33 +213,6 @@
                             </div>
                         @endif
                     </div>
-                </div>
-            </div>
-
-            <!-- Top Programs by Enrollment -->
-            <div>
-                <div class="flex items-center gap-2 mb-4">
-                    <h3 class="text-base font-bold tracking-tight text-gray-900 dark:text-white">Top Programs by Enrollment</h3>
-                </div>
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                    @foreach($overview['topPrograms'] as $index => $program)
-                    <div class="relative overflow-hidden flex flex-col p-4 rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-gray-900 shadow-sm">
-                        <div class="flex items-start justify-between mb-3">
-                            <div class="p-2 bg-gray-100 dark:bg-white/5 rounded-lg border border-gray-200 dark:border-white/10">
-                                <x-heroicon-o-academic-cap class="w-4 h-4 text-gray-600 dark:text-gray-400" />
-                            </div>
-                            <span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-gray-100 dark:bg-white/10 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-white/10">
-                                #{{ $index + 1 }}
-                            </span>
-                        </div>
-                        <h4 class="font-bold text-gray-900 dark:text-white text-base tracking-tight truncate">{{ $program['code'] }}</h4>
-                        <p class="text-xs font-medium text-gray-500 dark:text-gray-400 mt-0.5">Avg. Units: <span class="text-gray-700 dark:text-gray-300">{{ $program['avg_units'] }}</span></p>
-                        <div class="mt-3 pt-3 border-t border-gray-100 dark:border-white/5 flex items-end justify-between">
-                            <span class="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Students</span>
-                            <span class="text-lg font-bold text-gray-900 dark:text-white leading-none">{{ $program['count'] }}</span>
-                        </div>
-                    </div>
-                    @endforeach
                 </div>
             </div>
         </div>

@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Courses\Tables;
 
 use App\Enums\CourseType;
 use App\Models\Program;
+use App\Models\Course;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -103,13 +104,17 @@ class CoursesTable
             ])
             ->defaultSort('course_code')
             ->recordActions([
-                EditAction::make(),
-                \Filament\Actions\DeleteAction::make(),
+                EditAction::make()
+                    ->modalHeading(fn (Course $record) => "Edit Course: {$record->course_code}")
+                    ->modalWidth('4xl')
+                    ->visible(fn () => !auth()->user()->hasRole('viewer')),
+                \Filament\Actions\DeleteAction::make()
+                    ->visible(fn () => !auth()->user()->hasRole('viewer')),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
                     DeleteBulkAction::make(),
-                ]),
+                ])->visible(fn () => !auth()->user()->hasRole('viewer')),
             ]);
     }
 }

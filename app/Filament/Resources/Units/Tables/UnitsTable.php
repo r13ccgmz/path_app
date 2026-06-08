@@ -29,12 +29,13 @@ class UnitsTable
                     ->toggleable(),
             ])
             ->recordActions([
-                EditAction::make(),
+                EditAction::make()
+                    ->visible(fn () => !auth()->user()->hasRole('viewer')),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
                     DeleteBulkAction::make(),
-                ]),
+                ])->visible(fn () => !auth()->user()->hasRole('viewer')),
             ]);
     }
 }

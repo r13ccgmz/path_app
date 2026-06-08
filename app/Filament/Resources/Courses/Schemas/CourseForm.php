@@ -17,28 +17,35 @@ class CourseForm
     public static function configure(Schema $schema): Schema
     {
         return $schema
+            ->columns(1)
             ->components([
                 Section::make('Course Information')
-                    ->columns(2)
+                    ->collapsible()
+                    ->columns(6)
                     ->components([
                         TextInput::make('course_code')
                             ->label('Course Code')
                             ->required()
                             ->maxLength(50)
                             ->unique(ignoreRecord: true)
-                            ->placeholder('e.g., AERS 282'),
+                            ->placeholder('e.g., AERS 282')
+                            ->columnSpan(2),
                         TextInput::make('course_name')
                             ->label('Course Name')
                             ->required()
                             ->maxLength(255)
-                            ->placeholder('e.g., Social Research Design'),
+                            ->placeholder('e.g., Social Research Design')
+                            ->columnSpan(3),
                         Toggle::make('is_active')
                             ->label('Active')
-                            ->default(true),
+                            ->default(true)
+                            ->inline(false)
+                            ->columnSpan(1),
                     ]),
-                Section::make('Initial Program Links')
-                    ->description('Optionally link this course to programs right now. You can also manage links later using the Curriculum Map or the Course Edit page.')
-                    ->hiddenOn('edit')
+                Section::make('Program Links')
+                    ->description('Link this course to programs. You can also manage links using the Curriculum Map.')
+                    ->collapsible()
+                    ->collapsed()
                     ->components([
                         \Filament\Forms\Components\Repeater::make('programCourses')
                             ->relationship()
@@ -91,7 +98,13 @@ class CourseForm
                                     ->minValue(0),
                                 Toggle::make('is_required')
                                     ->label('Required')
-                                    ->default(true)
+                                    ->default(true),
+                                TextInput::make('prerequisite_text')
+                                    ->label('Prerequisites')
+                                    ->maxLength(500),
+                                Textarea::make('notes')
+                                    ->label('Notes')
+                                    ->rows(2)
                                     ->columnSpanFull(),
                             ])
                     ]),

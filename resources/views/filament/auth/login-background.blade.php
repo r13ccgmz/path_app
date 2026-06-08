@@ -192,6 +192,9 @@
         /* ── Logo ── */
         .fi-simple-main .fi-header-heading { display: none !important; }
         .fi-simple-main .fi-logo { margin: 0 auto; }
+        .fi-login-logo-glow {
+            filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.8)) drop-shadow(0 0 2px rgba(255, 255, 255, 1));
+        }
 
         /* ── Keyframes ── */
         @keyframes cardAppear {

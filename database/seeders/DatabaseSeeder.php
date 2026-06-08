@@ -23,6 +23,7 @@ class DatabaseSeeder extends Seeder
             MilestoneTemplateSeeder::class,
             UserSeeder::class,
             ShieldSeeder::class,
+            PredefinedRolesSeeder::class,
             CsvCourseSeeder::class, // Course import MUST run after programs, cognates, etc.
             ProgramRequirementsSeeder::class,
         ]);

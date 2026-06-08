@@ -33,11 +33,76 @@ trait HasStudentTable
     {
         if ($this->studentInfo && !empty($this->studentNumber)) {
             // Show enrollment history for the searched student
+            // Include both imported enrollee records AND manual student_enrollments
+            // that may not have been synced to the enrollees table
+            $student = Student::where('student_number', $this->studentNumber)->first();
             $query = Enrollee::where('student_number', $this->studentNumber);
+
+            // Also find manual student_enrollment records for term/program combos
+            // that don't exist in the enrollees table, and create virtual rows
+            if ($student) {
+                $manualEnrollments = StudentEnrollment::where('student_id', $student->id)
+                    ->where('source', 'manual')
+                    ->with(['course', 'semester', 'studentProgram.program', 'studentProgram.programMajor'])
+                    ->get();
+
+                // Group manual enrollments by semester to check if enrollee record exists
+                $manualByTerm = $manualEnrollments->groupBy(fn ($se) => $se->semester?->term_code);
+
+                foreach ($manualByTerm as $termCode => $termEnrollments) {
+                    if (!$termCode) continue;
+
+                    $existingEnrollee = Enrollee::where('student_number', $this->studentNumber)
+                        ->where('term_id', $termCode)
+                        ->first();
+
+                    $manualCourses = $termEnrollments->map(fn ($se) => $se->course?->course_code)->filter()->toArray();
+
+                    if ($existingEnrollee) {
+                        // Check if manual courses are already in the enrollee's courses_enrolled
+                        $existingCourses = array_map('trim', explode(',', $existingEnrollee->courses_enrolled ?? ''));
+                        $missingCourses = array_diff($manualCourses, $existingCourses);
+                        if (!empty($missingCourses)) {
+                            // Add missing manual courses to the existing enrollee record
+                            $existingEnrollee->courses_enrolled = trim(
+                                ($existingEnrollee->courses_enrolled ?? '') . ', ' . implode(', ', $missingCourses), ', '
+                            );
+                            $existingEnrollee->total_units += $termEnrollments
+                                ->filter(fn ($se) => in_array($se->course?->course_code, $missingCourses))
+                                ->sum('units_earned');
+                            $existingEnrollee->save();
+                        }
+                    } else {
+                        // Create a new enrollee record for this manual-only term
+                        $sp = $termEnrollments->first()->studentProgram;
+                        $baseEnrollee = Enrollee::where('student_number', $this->studentNumber)
+                            ->latest('term_id')->first();
+
+                        Enrollee::create([
+                            'term_id' => $termCode,
+                            'student_number' => $this->studentNumber,
+                            'last_name' => $baseEnrollee?->last_name ?? $student->surname ?? '',
+                            'first_name' => $baseEnrollee?->first_name ?? $student->given_name ?? '',
+                            'degree_program' => $sp?->program
+                                ? $sp->program->name . ($sp->programMajor ? ' in ' . $sp->programMajor->name : '')
+                                : ($baseEnrollee?->degree_program ?? ''),
+                            'program_id' => $sp?->program_id ?? $baseEnrollee?->program_id,
+                            'program_major_id' => $sp?->program_major_id ?? $baseEnrollee?->program_major_id,
+                            'courses_enrolled' => implode(', ', $manualCourses),
+                            'total_units' => $termEnrollments->sum('units_earned'),
+                            'source' => 'manual',
+                            'campus_id' => $baseEnrollee?->campus_id,
+                        ]);
+                    }
+                }
+
+                // Re-query to include newly-created enrollee records
+                $query = Enrollee::where('student_number', $this->studentNumber);
+            }
         } else {
             // Show all students from the students table (default view)
             $query = Student::query()
-                ->with(['committeeMembers.faculty', 'studentPrograms.program', 'admissionSemester'])
+                ->with(['committeeMembers.faculty', 'studentPrograms.program', 'studentPrograms.programMajor', 'admissionSemester'])
                 ->addSelect([
                     'students.*',
                     'terms_enrolled' => DB::table('enrollees as e2')
@@ -103,7 +168,7 @@ trait HasStudentTable
                         // Student model — get from studentPrograms relationship
                         $programs = $record->studentPrograms;
                         if ($programs->isEmpty()) return '-';
-                        return $programs->map(fn ($sp) => $sp->program?->code ?? $sp->raw_degree_name)->implode(', ');
+                        return $programs->map(fn ($sp) => ($sp->program?->code ?? $sp->raw_degree_name) . ($sp->programMajor ? ' in ' . $sp->programMajor->name : ''))->implode(', ');
                     })
                     ->badge()
                     ->color('gray')
@@ -112,10 +177,12 @@ trait HasStudentTable
                 Tables\Columns\TextColumn::make('degree_program')
                     ->label('Program')
                     ->wrap()
+                    ->sortable()
                     ->visible(fn () => !empty($this->studentInfo)),
                 Tables\Columns\TextColumn::make('courses_enrolled')
                     ->label('Courses Enrolled')
                     ->wrap()
+                    ->sortable()
                     ->visible(fn () => !empty($this->studentInfo)),
                 Tables\Columns\TextColumn::make('terms_enrolled')
                     ->label('Terms')
@@ -171,11 +238,14 @@ trait HasStudentTable
                     ->color(fn (?string $state): string => match ($state) {
                         'active' => 'success',
                         'graduated' => 'info',
+                        'candidate' => 'info',
                         'on-leave', 'leave-of-absence-approved' => 'warning',
+                        'inactive' => 'danger',
                         'absent-without-official-leave', 'dismissed', 'dropped', 'withdrawn' => 'danger',
                         default => 'gray',
                     })
                     ->visible(fn () => empty($this->studentInfo))
+                    ->sortable()
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('applicant_status')
                     ->label('Applicant Status')
@@ -189,6 +259,7 @@ trait HasStudentTable
                         default => 'gray',
                     })
                     ->visible(fn () => empty($this->studentInfo))
+                    ->sortable()
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('latest_enrollment_status')
                     ->label('Enrollment Status')
@@ -220,6 +291,7 @@ trait HasStudentTable
                     ->label('Gender')
                     ->formatStateUsing(fn ($state) => $state ? ucfirst($state) : '-')
                     ->visible(fn () => empty($this->studentInfo))
+                    ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('nationality')
                     ->label('Nationality')
@@ -242,6 +314,7 @@ trait HasStudentTable
                 Tables\Columns\TextColumn::make('email')
                     ->label('Email')
                     ->visible(fn () => empty($this->studentInfo))
+                    ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->defaultSort($this->studentInfo ? 'term_id' : 'surname')
@@ -251,6 +324,7 @@ trait HasStudentTable
                     ->multiple()
                     ->options([
                         'active' => 'Active',
+                        'candidate' => 'Candidate for Graduation',
                         'on-leave' => 'On Leave',
                         'leave-of-absence-approved' => 'Leave of Absence Approved',
                         'absent-without-official-leave' => 'Absent Without Official Leave',
@@ -278,16 +352,68 @@ trait HasStudentTable
                         return $query->whereHas('committeeMembers', fn ($q) => $q->where('role', 'Adviser')->where('faculty_id', $data['value']));
                     })
                     ->visible(fn () => empty($this->studentInfo)),
-                Tables\Filters\SelectFilter::make('degree_program')
-                    ->label('Program')
-                    ->options(fn () => \App\Models\Program::orderBy('code')->pluck('code', 'id')->toArray())
-                    ->searchable()
-                    ->preload()
-                    ->multiple()
+                Tables\Filters\Filter::make('program_filters')
+                    ->form([
+                        Forms\Components\Select::make('degree_program')
+                            ->label('Program')
+                            ->options(fn () => \App\Models\Program::orderBy('name')->pluck('name', 'id')->toArray())
+                            ->searchable()
+                            ->preload()
+                            ->multiple()
+                            ->live()
+                            ->afterStateUpdated(fn (\Filament\Schemas\Components\Utilities\Set $set) => $set('program_major', null)),
+                        Forms\Components\Select::make('program_major')
+                            ->label('Specialization / Major')
+                            ->options(function (\Filament\Schemas\Components\Utilities\Get $get) {
+                                $selectedProgramIds = $get('degree_program') ?? [];
+
+                                $query = \App\Models\ProgramMajor::with('program')
+                                    ->orderBy('program_id')
+                                    ->orderBy('name');
+
+                                if (!empty($selectedProgramIds)) {
+                                    $query->whereIn('program_id', $selectedProgramIds);
+                                }
+
+                                return $query->get()
+                                    ->mapWithKeys(function ($m) {
+                                        $code = $m->program?->code ?? '??';
+                                        return [$m->id => "{$code} — {$m->name}"];
+                                    })
+                                    ->toArray();
+                            })
+                            ->multiple(),
+                    ])
                     ->query(function ($query, array $data) {
-                        $values = $data['values'] ?? [];
-                        if (empty($values)) return $query;
-                        return $query->whereHas('studentPrograms', fn ($q) => $q->whereIn('program_id', $values));
+                        $programIds = $data['degree_program'] ?? [];
+                        $majorIds = $data['program_major'] ?? [];
+
+                        if (!empty($programIds)) {
+                            $query->whereHas('studentPrograms', fn ($q) => $q->whereIn('program_id', $programIds));
+                        }
+                        if (!empty($majorIds)) {
+                            $query->whereHas('studentPrograms', fn ($q) => $q->whereIn('program_major_id', $majorIds));
+                        }
+
+                        return $query;
+                    })
+                    ->indicateUsing(function (array $data): array {
+                        $indicators = [];
+                        $programIds = $data['degree_program'] ?? [];
+                        $majorIds = $data['program_major'] ?? [];
+
+                        if (!empty($programIds)) {
+                            $names = \App\Models\Program::whereIn('id', $programIds)->pluck('name')->toArray();
+                            $indicators[] = Tables\Filters\Indicator::make('Program: ' . implode(', ', $names))
+                                ->removeField('degree_program');
+                        }
+                        if (!empty($majorIds)) {
+                            $names = \App\Models\ProgramMajor::whereIn('id', $majorIds)->pluck('name')->toArray();
+                            $indicators[] = Tables\Filters\Indicator::make('Major: ' . implode(', ', $names))
+                                ->removeField('program_major');
+                        }
+
+                        return $indicators;
                     })
                     ->visible(fn () => empty($this->studentInfo)),
                 Tables\Filters\SelectFilter::make('admission_semester')
@@ -325,7 +451,7 @@ trait HasStudentTable
             ->emptyStateIcon(fn () => empty($this->studentInfo) ? 'heroicon-o-users' : 'heroicon-o-academic-cap')
             ->actions([
                 \Filament\Actions\EditAction::make()
-                    ->visible(fn ($record) => !empty($this->studentInfo))
+                    ->visible(fn ($record) => !empty($this->studentInfo) && !auth()->user()->hasRole('viewer'))
                     ->modalHeading('Edit Enrollment Record')
                     ->modalWidth('lg')
                     ->form([
@@ -509,16 +635,23 @@ trait HasStudentTable
                         $oldSemesterId = $actualOldSemesterId ?? $oldSemesterFromEnrollee;
 
                         // Determine the correct student_program_id by matching the enrollee's degree_program
+                        // Match via raw_degree_name first (exact match to enrollee's program text),
+                        // then fall back to program_id lookup
                         $studentProgramId = null;
                         $enrolleeDegreeProgram = $record->degree_program ?? null;
                         if ($enrolleeDegreeProgram) {
-                            $matchedProgramId = DB::table('programs')
-                                ->where('name', $enrolleeDegreeProgram)
+                            $studentProgramId = \App\Models\StudentProgram::where('student_id', $student->id)
+                                ->where('raw_degree_name', $enrolleeDegreeProgram)
                                 ->value('id');
-                            if ($matchedProgramId) {
-                                $studentProgramId = \App\Models\StudentProgram::where('student_id', $student->id)
-                                    ->where('program_id', $matchedProgramId)
+                            if (!$studentProgramId) {
+                                $matchedProgramId = DB::table('programs')
+                                    ->where('name', $enrolleeDegreeProgram)
                                     ->value('id');
+                                if ($matchedProgramId) {
+                                    $studentProgramId = \App\Models\StudentProgram::where('student_id', $student->id)
+                                        ->where('program_id', $matchedProgramId)
+                                        ->value('id');
+                                }
                             }
                         }
                         // Fallback: use existing enrollment's program or first available
@@ -618,15 +751,16 @@ trait HasStudentTable
                     ->label('Delete')
                     ->icon('heroicon-o-trash')
                     ->color('danger')
-                    ->visible(fn ($record) => empty($this->studentInfo))
+                    ->visible(fn ($record) => empty($this->studentInfo) && !auth()->user()->hasRole('viewer'))
                     ->modalHeading('Delete Student Record')
+                    ->modalDescription('This student will be soft-deleted and can be restored later from the Activity Log. Their data will be excluded from all reports and widget counts.')
                     ->requiresConfirmation()
                     ->action(function ($record) {
-                        $record->forceDelete();
-                        Notification::make()->title('Student Deleted')->success()->send();
+                        $record->delete();
+                        Notification::make()->title('Student Deleted')->body('The student record has been soft-deleted. It can be restored from the Activity Log.')->success()->send();
                     }),
                 \Filament\Actions\DeleteAction::make()
-                    ->visible(fn ($record) => !empty($this->studentInfo))
+                    ->visible(fn ($record) => !empty($this->studentInfo) && !auth()->user()->hasRole('viewer'))
                     ->modalHeading('Delete Enrollment Record')
                     ->after(function ($record) {
                         // Clean up corresponding student_enrollments when an enrollee record is deleted
@@ -702,17 +836,19 @@ trait HasStudentTable
                     ->color('success')
                     ->modalHeading('Add New Student')
                     ->modalDescription('Manually create a student record. This student will appear in the list immediately.')
-                    ->modalWidth('2xl')
+                    ->modalWidth('4xl')
                     ->modalSubmitActionLabel('Create Student')
-                    ->visible(fn () => empty($this->studentInfo))
+                    ->visible(fn () => empty($this->studentInfo) && !auth()->user()->hasRole('viewer'))
                     ->form([
                         \Filament\Schemas\Components\Section::make('Personal Information')
+                            ->collapsible()
                             ->schema([
                                 Forms\Components\TextInput::make('student_number')
                                     ->label('Student Number')
                                     ->required()
                                     ->placeholder('e.g. 202012345')
-                                    ->unique('students', 'student_number', modifyRuleUsing: fn (\Illuminate\Validation\Rules\Unique $rule) => $rule->whereNull('deleted_at')),
+                                    ->unique('students', 'student_number')
+                                    ->maxLength(20),
                                 Forms\Components\TextInput::make('surname')
                                     ->label('Last Name')
                                     ->required()
@@ -724,10 +860,48 @@ trait HasStudentTable
                                 Forms\Components\TextInput::make('middle_name')
                                     ->label('Middle Name')
                                     ->maxLength(100),
-                                Forms\Components\TextInput::make('email')
-                                    ->maxLength(255),
+                                Forms\Components\Select::make('student_status')
+                                    ->label('Student Status')
+                                    ->options([
+                                        'active' => 'Active',
+                                        'candidate' => 'Candidate for Graduation',
+                                        'on-leave' => 'On Leave',
+                                        'leave-of-absence-approved' => 'Leave of Absence Approved',
+                                        'absent-without-official-leave' => 'Absent Without Official Leave',
+                                        'graduated' => 'Graduated',
+                                        'dismissed' => 'Dismissed',
+                                        'dropped' => 'Dropped',
+                                        'withdrawn' => 'Withdrawn',
+                                        'inactive' => 'Inactive',
+                                    ])
+                                    ->default('active')
+                                    ->required()
+                                    ->columnSpanFull(),
+                                \Filament\Schemas\Components\Html::make('<hr class="border-gray-200 dark:border-gray-700 my-2">')->columnSpanFull(),
+                                Forms\Components\Select::make('sex')
+                                    ->options(['male' => 'Male', 'female' => 'Female', 'other' => 'Other']),
+                                Forms\Components\DatePicker::make('birthdate'),
+                                Forms\Components\Select::make('nationality')
+                                    ->label('Nationality(s)')
+                                    ->options(\App\Models\Student::getNationalities())
+                                    ->multiple()
+                                    ->searchable()
+                                    ->default(['Filipino']),
+                                Forms\Components\Select::make('marital_status')
+                                    ->options(['single' => 'Single', 'married' => 'Married', 'widowed' => 'Widowed', 'separated' => 'Separated', 'divorced' => 'Divorced']),
+                                Forms\Components\Select::make('country_of_origin')
+                                    ->label('Country of Origin')
+                                    ->options(\App\Models\Student::getCountries())
+                                    ->searchable(),
+                                Forms\Components\TagsInput::make('address')
+                                    ->label('Address(es)')
+                                    ->placeholder('Add address...')
+                                    ->columnSpanFull(),
                             ])->columns(2),
                         \Filament\Schemas\Components\Section::make('Contact Details')
+                            ->description('Email addresses and phone numbers.')
+                            ->collapsible()
+                            ->collapsed()
                             ->schema([
                                 Forms\Components\TextInput::make('up_email')
                                     ->label('UP Email')
@@ -750,6 +924,9 @@ trait HasStudentTable
                                     ->placeholder('Add alternative number'),
                             ])->columns(3),
                         \Filament\Schemas\Components\Section::make('Social Media & Affiliation')
+                            ->description('Social media profiles and institutional affiliations.')
+                            ->collapsible()
+                            ->collapsed()
                             ->schema([
                                 Forms\Components\TextInput::make('social_facebook')
                                     ->label('Facebook')
@@ -766,52 +943,29 @@ trait HasStudentTable
                                     ->label('Office / School / Institution Affiliated')
                                     ->placeholder('Add affiliation...'),
                             ])->columns(2),
-                        \Filament\Schemas\Components\Section::make('Demographics & Address')
-                            ->schema([
-                                Forms\Components\Select::make('sex')
-                                    ->options(['male' => 'Male', 'female' => 'Female', 'other' => 'Other']),
-                                Forms\Components\DatePicker::make('birthdate'),
-                                Forms\Components\Select::make('nationality')
-                                    ->label('Nationality(s)')
-                                    ->options(\App\Models\Student::getNationalities())
-                                    ->multiple()
-                                    ->searchable()
-                                    ->default(['Filipino']),
-                                Forms\Components\Select::make('marital_status')
-                                    ->options(['single' => 'Single', 'married' => 'Married', 'widowed' => 'Widowed', 'separated' => 'Separated', 'divorced' => 'Divorced']),
-                                Forms\Components\Select::make('country_of_origin')
-                                    ->label('Country of Origin')
-                                    ->options(\App\Models\Student::getCountries())
-                                    ->searchable(),
-                                Forms\Components\TagsInput::make('address')
-                                    ->label('Address(es)')
-                                    ->placeholder('Add address...')
-                                    ->columnSpanFull(),
-                            ])->columns(2),
-                        \Filament\Schemas\Components\Section::make('Status, Admission & Committee')
-                            ->description('Academic status, admission details, and committee assignments.')
+                        \Filament\Schemas\Components\Section::make('Admission Details')
+                            ->description('Academic program, admission details, and primary advisers.')
+                            ->collapsible()
+                            ->collapsed()
                             ->schema([
                                 Forms\Components\Select::make('program_id')
                                     ->label('Program')
-                                    ->options(Program::pluck('name', 'id'))
+                                    ->options(\App\Models\Program::pluck('name', 'id'))
                                     ->searchable()
                                     ->preload()
+                                    ->live()
                                     ->placeholder('Select program...'),
-                                Forms\Components\Select::make('student_status')
-                                    ->label('Status')
-                                    ->options([
-                                        'active' => 'Active',
-                                        'on-leave' => 'On Leave',
-                                        'leave-of-absence-approved' => 'Leave of Absence Approved',
-                                        'absent-without-official-leave' => 'Absent Without Official Leave',
-                                        'graduated' => 'Graduated',
-                                        'dismissed' => 'Dismissed',
-                                        'dropped' => 'Dropped',
-                                        'withdrawn' => 'Withdrawn',
-                                        'inactive' => 'Inactive',
-                                    ])
-                                    ->default('active')
-                                    ->required(),
+                                Forms\Components\Select::make('program_major_id')
+                                    ->label('Specialization / Major')
+                                    ->options(function (callable $get) {
+                                        $programId = $get('program_id');
+                                        if (!$programId) return [];
+                                        return \App\Models\ProgramMajor::where('program_id', $programId)
+                                            ->orderBy('name')->pluck('name', 'id')->toArray();
+                                    })
+                                    ->searchable()
+                                    ->placeholder('Select specialization (if applicable)...')
+                                    ->nullable(),
                                 Forms\Components\Select::make('applicant_status')
                                     ->label('Applicant Status')
                                     ->options([
@@ -825,7 +979,7 @@ trait HasStudentTable
                                 Forms\Components\Select::make('admission_semester_id')
                                     ->label('Admission Semester')
                                     ->options(function () {
-                                        return Semester::with('academicYear')
+                                        return \App\Models\Semester::with('academicYear')
                                             ->orderByRaw('CAST(term_code AS UNSIGNED) DESC')
                                             ->get()
                                             ->mapWithKeys(fn ($s) => [$s->id => "[{$s->term_code}] {$s->label}"])
@@ -835,34 +989,50 @@ trait HasStudentTable
                                     ->placeholder('Select semester...'),
                                 Forms\Components\DatePicker::make('admission_date')
                                     ->label('Admission Date'),
-                            \Filament\Schemas\Components\Html::make('<hr class="border-gray-200 dark:border-gray-700 my-2">')->columnSpanFull(),
-                            $this->buildAdviserRow('adviser', 'Primary Adviser'),
-                            $this->buildAdviserRow('registration_adviser', 'Registration Adviser'),
-                        ])->columns(2),
+                                \Filament\Schemas\Components\Html::make('<hr class="border-gray-200 dark:border-gray-700 my-2">')->columnSpanFull(),
+                                $this->buildAdviserRow('registration_adviser', 'Registration Adviser'),
+                            ])->columns(2),
                     \Filament\Schemas\Components\Section::make('Advisory Committee')
+                        ->collapsible()
+                        ->collapsed()
                         ->schema([
                             Forms\Components\Repeater::make('committee_members')
                                 ->label('Committee Members')
                                 ->hiddenLabel()
                                 ->schema([
-                                    Forms\Components\Select::make('role')
-                                        ->label('Role')
-                                        ->options([
-                                            'Chair' => 'Chair',
-                                            'Co-Chair' => 'Co-Chair',
-                                            'Cognate' => 'Cognate',
-                                            'Major' => 'Major',
-                                            'Minor' => 'Minor',
-                                            'Member' => 'Member',
-                                            'Adviser' => 'Adviser',
-                                            'Co-Adviser' => 'Co-Adviser',
-                                        ])
-                                        ->required(),
-                                    $this->buildFacultyIdSelect('faculty_id', 'Faculty Name')->required(),
-                                    Forms\Components\DatePicker::make('appointed_date')
-                                        ->label('Date Appointed'),
+                                    \Filament\Schemas\Components\Group::make([
+                                        Forms\Components\Select::make('role')
+                                            ->label('Role')
+                                            ->options([
+                                                'Adviser' => 'Adviser',
+                                                'Co-Adviser' => 'Co-Adviser',
+                                                'Former Adviser' => 'Former Adviser',
+                                                'Chair' => 'Chair',
+                                                'Co-Chair' => 'Co-Chair',
+                                                'Cognate' => 'Cognate',
+                                                'Major' => 'Major',
+                                                'Minor' => 'Minor',
+                                                'Member' => 'Member',
+                                            ])
+                                            ->required()
+                                            ->columnSpan(1),
+                                        $this->buildFacultyIdSelect('faculty_id', 'Faculty Name')
+                                            ->required()
+                                            ->columnSpan(2),
+                                        Forms\Components\DatePicker::make('appointed_date')
+                                            ->label('Date Appointed')
+                                            ->columnSpan(1),
+                                    ])->columns(4),
+                                    \Filament\Schemas\Components\Group::make([
+                                        $this->buildTermSelect('term_start_id', 'Term Start')
+                                            ->dehydrated(true)
+                                            ->columnSpan(1),
+                                        $this->buildTermSelect('term_end_id', 'Term End')
+                                            ->dehydrated(true)
+                                            ->columnSpan(1),
+                                    ])->columns(2),
                                 ])
-                                ->columns(3)
+                                ->columns(1)
                                 ->columnSpanFull()
                                 ->addActionLabel('Add Committee Member')
                                 ->reorderable(false),
@@ -885,6 +1055,7 @@ trait HasStudentTable
                             StudentProgram::create([
                                 'student_id' => $student->id,
                                 'program_id' => $data['program_id'],
+                                'program_major_id' => $data['program_major_id'] ?? null,
                                 'status' => 'active',
                             ]);
                         }
@@ -897,6 +1068,8 @@ trait HasStudentTable
                                         'faculty_id' => $cm['faculty_id'],
                                         'role' => $cm['role'],
                                         'appointed_date' => $cm['appointed_date'] ?? null,
+                                        'term_start_id' => $cm['term_start_id'] ?? null,
+                                        'term_end_id' => $cm['term_end_id'] ?? null,
                                     ]);
                                 }
                             }
@@ -907,6 +1080,82 @@ trait HasStudentTable
                             ->body("{$fullName} has been added to the system.")
                             ->success()
                             ->duration(5000)
+                            ->send();
+                    }),
+                \Filament\Actions\Action::make('syncStatuses')
+                    ->label('Sync Student Statuses')
+                    ->icon('heroicon-o-arrow-path')
+                    ->color('warning')
+                    ->requiresConfirmation()
+                    ->modalHeading('Sync Student Statuses')
+                    ->modalDescription('This will update student statuses based on current enrollment data: mark unenrolled active students as inactive, reactivate enrolled inactive students, and identify candidates for graduation.')
+                    ->visible(fn () => empty($this->studentInfo) && !auth()->user()->hasRole('viewer'))
+                    ->action(function () {
+                        $currentSem = Semester::where('is_current', true)->first();
+                        if (!$currentSem) {
+                            Notification::make()
+                                ->title('No current semester set')
+                                ->body('Please set a current semester in System Settings before syncing.')
+                                ->danger()
+                                ->send();
+                            return;
+                        }
+
+                        $termCode = $currentSem->term_code;
+                        $inactiveCount = 0;
+                        $reactivateCount = 0;
+                        $candidateCount = 0;
+
+                        // 1. Mark active students without current-term enrollment as inactive
+                        $activeStudents = Student::where('student_status', 'active')->get();
+                        foreach ($activeStudents as $student) {
+                            $hasEnrollment = Enrollee::where('student_number', $student->student_number)
+                                ->where('term_id', $termCode)->exists();
+                            if (!$hasEnrollment) {
+                                $student->update(['student_status' => 'inactive']);
+                                $inactiveCount++;
+                            }
+                        }
+
+                        // 2. Reactivate inactive students with current-term enrollment
+                        $inactiveStudents = Student::where('student_status', 'inactive')->get();
+                        foreach ($inactiveStudents as $student) {
+                            $hasEnrollment = Enrollee::where('student_number', $student->student_number)
+                                ->where('term_id', $termCode)->exists();
+                            if ($hasEnrollment) {
+                                $student->update(['student_status' => 'active']);
+                                $reactivateCount++;
+                            }
+                        }
+
+                        // 3. Identify candidates for graduation (100% unit completion)
+                        $potentialCandidates = Student::whereIn('student_status', ['active'])
+                            ->whereNotNull('program_id')
+                            ->with('program')
+                            ->get();
+                        foreach ($potentialCandidates as $student) {
+                            $program = $student->program;
+                            if (!$program || !$program->total_units_required) continue;
+                            $totalRequired = $program->total_units_required;
+                            if ($totalRequired <= 0) continue;
+
+                            $totalEarned = StudentEnrollment::where('student_id', $student->id)
+                                ->sum('units_earned');
+                            if ($totalEarned >= $totalRequired) {
+                                $student->update(['student_status' => 'candidate']);
+                                StudentProgram::where('student_id', $student->id)
+                                    ->where('program_id', $student->program_id)
+                                    ->where('status', 'active')
+                                    ->update(['status' => 'candidate']);
+                                $candidateCount++;
+                            }
+                        }
+
+                        Notification::make()
+                            ->title('Student Statuses Synced')
+                            ->body("{$inactiveCount} marked inactive, {$reactivateCount} reactivated, {$candidateCount} candidates identified.")
+                            ->success()
+                            ->duration(8000)
                             ->send();
                     }),
             ])

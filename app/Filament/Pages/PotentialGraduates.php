@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Filament\Pages;
+use BezhanSalleh\FilamentShield\Traits\HasPageShield;
 
 use App\Models\Enrollee;
 use App\Models\Student;
@@ -21,6 +22,7 @@ use Illuminate\Support\HtmlString;
 
 class PotentialGraduates extends Page implements HasTable
 {
+    use HasPageShield;
     use InteractsWithTable;
 
     protected static string|\UnitEnum|null $navigationGroup = 'Student Management';
@@ -73,22 +75,33 @@ class PotentialGraduates extends Page implements HasTable
             )
             ->defaultSort('live_units_earned', 'asc')
             ->columns([
-                Tables\Columns\TextColumn::make('student.student_number')
-                    ->label('Student #')
-                    ->sortable()
-                    ->searchable()
-                    ->formatStateUsing(fn (string $state): string =>
-                        Enrollee::formatStudentNumber($state)
-                    ),
                 Tables\Columns\TextColumn::make('student.full_name')
-                    ->label('Name')
+                    ->label('Student Details')
                     ->sortable()
-                    ->searchable()
-                    ->wrap(),
+                    ->searchable(query: function (Builder $query, string $search): Builder {
+                        return $query->whereHas('student', function (Builder $q) use ($search) {
+                            $q->where('full_name', 'like', "%{$search}%")
+                              ->orWhere('student_number', 'like', "%{$search}%")
+                              ->orWhere('email', 'like', "%{$search}%");
+                        });
+                    })
+                    ->description(function (StudentProgram $record) {
+                        $num = Enrollee::formatStudentNumber($record->student->student_number);
+                        $email = $record->student->email;
+                        return new HtmlString("<span class='font-mono text-xs text-gray-500 dark:text-gray-400'>{$num}</span>" . ($email ? " <span class='text-gray-300 dark:text-gray-700'>•</span> <span class='text-xs text-gray-500 dark:text-gray-405'>{$email}</span>" : ""));
+                    }),
                 Tables\Columns\TextColumn::make('program.code')
                     ->label('Program')
                     ->sortable()
-                    ->badge(),
+                    ->badge()
+                    ->color(fn (string $state): string => match (strtoupper($state)) {
+                        'MPA' => 'warning',
+                        'MDMG' => 'info',
+                        'CS', 'BSCS' => 'primary',
+                        'MSCS' => 'success',
+                        'MIT' => 'danger',
+                        default => 'gray',
+                    }),
                 Tables\Columns\TextColumn::make('programMajor.name')
                     ->label('Major')
                     ->sortable()
@@ -102,7 +115,7 @@ class PotentialGraduates extends Page implements HasTable
                     ->sortable()
                     ->alignEnd(),
                 Tables\Columns\TextColumn::make('completion_pct')
-                    ->label('Completion')
+                    ->label('Completion Progress')
                     ->state(function (StudentProgram $record): string {
                         $required = $record->program?->total_units_required;
                         if (! $required || $required <= 0) return '—';
@@ -110,16 +123,41 @@ class PotentialGraduates extends Page implements HasTable
                         $pct = min(100, round(($earned / $required) * 100, 1));
                         return "{$pct}%";
                     })
-                    ->badge()
-                    ->color(function (StudentProgram $record): string {
-                        $required = $record->program?->total_units_required;
-                        if (! $required || $required <= 0) return 'gray';
+                    ->html()
+                    ->formatStateUsing(function (string $state, StudentProgram $record): HtmlString {
+                        if ($state === '—') return new HtmlString('<span class="text-gray-400 dark:text-gray-600">—</span>');
+                        $pct = (float) str_replace('%', '', $state);
+                        
+                        // Select color based on completion percentage
+                        $threshold = (int) \App\Models\SystemSetting::get('graduation_candidate_threshold', 100);
+                        if ($pct >= $threshold) {
+                            $colorClass = 'text-emerald-600 dark:text-emerald-400';
+                            $barBg = 'bg-emerald-500';
+                        } elseif ($pct >= 75) {
+                            $colorClass = 'text-blue-600 dark:text-blue-400';
+                            $barBg = 'bg-blue-500';
+                        } elseif ($pct >= 50) {
+                            $colorClass = 'text-amber-600 dark:text-amber-400';
+                            $barBg = 'bg-amber-500';
+                        } else {
+                            $colorClass = 'text-gray-600 dark:text-gray-400';
+                            $barBg = 'bg-gray-400 dark:bg-gray-600';
+                        }
+
+                        $required = (int) ($record->program?->total_units_required ?? 0);
                         $earned = (int) ($record->live_units_earned ?? $record->total_units_earned ?? 0);
-                        $pct = ($earned / $required) * 100;
-                        if ($pct >= 100) return 'success';
-                        if ($pct >= 75) return 'info';
-                        if ($pct >= 50) return 'warning';
-                        return 'gray';
+
+                        return new HtmlString("
+                            <div class='flex flex-col gap-1 min-w-[155px]'>
+                                <div class='flex justify-between items-center text-xs'>
+                                    <span class='{$colorClass} font-semibold'>{$state}</span>
+                                    <span class='text-gray-400 dark:text-gray-500 font-mono'>{$earned}/{$required} u</span>
+                                </div>
+                                <div class='w-full bg-gray-200 dark:bg-gray-700 rounded-full h-1.5 overflow-hidden shadow-inner'>
+                                    <div class='{$barBg} h-1.5 rounded-full transition-all duration-500' style='width: {$pct}%'></div>
+                                </div>
+                            </div>
+                        ");
                     })
                     ->sortable(query: function (Builder $query, string $direction): Builder {
                         return $query->orderBy(
@@ -132,7 +170,14 @@ class PotentialGraduates extends Page implements HasTable
                     ->label('GWA')
                     ->sortable()
                     ->toggleable()
-                    ->formatStateUsing(fn ($state) => $state ? number_format($state, 3) : '—'),
+                    ->visible(fn () => !auth()->user()?->hasRole('viewer'))
+                    ->formatStateUsing(function ($state) {
+                        if (!$state) return '—';
+                        if (auth()->user()?->hasRole('super_admin')) {
+                            return '••••';
+                        }
+                        return number_format($state, 3);
+                    }),
                 Tables\Columns\TextColumn::make('residency_enrolled')
                     ->label('Semesters')
                     ->sortable()
@@ -141,8 +186,12 @@ class PotentialGraduates extends Page implements HasTable
                     ->label('Adviser')
                     ->getStateUsing(function ($record) {
                         $adviser = $record->student?->committeeMembers?->firstWhere('role', 'Adviser');
-                        return $adviser?->faculty?->full_name ?? '-';
+                        return $adviser?->faculty?->full_name ?? null;
                     })
+                    ->icon(fn ($state) => $state ? 'heroicon-o-user' : 'heroicon-o-user-minus')
+                    ->iconColor(fn ($state) => $state ? 'primary' : 'gray')
+                    ->placeholder('None assigned')
+                    ->color(fn ($state) => $state ? null : 'gray')
                     ->toggleable(),
                 Tables\Columns\TextColumn::make('status')
                     ->label('Status')
@@ -215,12 +264,14 @@ class PotentialGraduates extends Page implements HasTable
                     }),
                 Tables\Filters\Filter::make('candidates')
                     ->label('Candidates for Graduation')
-                    ->query(fn (Builder $query): Builder =>
-                        $query->whereRaw(
-                            '(SELECT COALESCE(SUM(se.units_earned), 0) FROM student_enrollments se WHERE se.student_program_id = student_programs.id AND se.status = ?) >= (SELECT total_units_required FROM programs WHERE programs.id = student_programs.program_id)',
-                            ['completed']
-                        )
-                    ),
+                    ->query(function (Builder $query): Builder {
+                        $threshold = (int) \App\Models\SystemSetting::get('graduation_candidate_threshold', 100);
+                        $thresholdDecimal = $threshold / 100;
+                        return $query->whereRaw(
+                            '(SELECT COALESCE(SUM(se.units_earned), 0) FROM student_enrollments se WHERE se.student_program_id = student_programs.id AND se.status = ?) >= ((SELECT total_units_required FROM programs WHERE programs.id = student_programs.program_id) * ?)',
+                            ['completed', $thresholdDecimal]
+                        );
+                    }),
             ])
             ->recordUrl(fn (StudentProgram $record): string =>
                 '/admin/list-of-students?studentNumber=' . urlencode($record->student->student_number)
@@ -257,6 +308,9 @@ class PotentialGraduates extends Page implements HasTable
 
             $admSemester = $first ? \App\Models\Semester::where('term_code', $first->term_id)->first() : null;
 
+            $progId = $matcher->match($latest->degree_program ?? '');
+            $progMajorId = $progId ? $matcher->matchMajor($progId, $latest->degree_program ?? '') : null;
+
             Student::create([
                 'student_number' => $studentNumber,
                 'surname' => $latest->last_name ?? '',
@@ -264,7 +318,8 @@ class PotentialGraduates extends Page implements HasTable
                 'middle_name' => $latest->middle_name ?? null,
                 'full_name' => $latest->full_name ?? ($latest->last_name . ', ' . $latest->first_name),
                 'email' => $latest->email ?? null,
-                'program_id' => $matcher->match($latest->degree_program ?? ''),
+                'program_id' => $progId,
+                'program_major_id' => $progMajorId,
                 'admission_semester_id' => null,
                 'student_status' => 'active',
             ]);
@@ -281,13 +336,18 @@ class PotentialGraduates extends Page implements HasTable
                 ->get();
 
             $byProgram = $enrollees->groupBy('degree_program');
-            $seenProgramIds = StudentProgram::where('student_id', $student->id)
-                ->pluck('program_id')->toArray();
+            $seenPairs = StudentProgram::where('student_id', $student->id)
+                ->get(['program_id', 'program_major_id'])
+                ->map(fn ($sp) => $sp->program_id . ':' . ($sp->program_major_id ?? 'null'))
+                ->toArray();
 
             foreach ($byProgram as $rawDegree => $records) {
                 $programId = $matcher->match($rawDegree);
-                if (!$programId || in_array($programId, $seenProgramIds)) continue;
-                $seenProgramIds[] = $programId;
+                if (!$programId) continue;
+                $programMajorId = $matcher->matchMajor($programId, $rawDegree);
+                $pairKey = $programId . ':' . ($programMajorId ?? 'null');
+                if (in_array($pairKey, $seenPairs)) continue;
+                $seenPairs[] = $pairKey;
 
                 $termIds = $records->pluck('term_id')->unique()->sort()->values();
                 $firstTerm = $termIds->first();
@@ -296,6 +356,7 @@ class PotentialGraduates extends Page implements HasTable
                 StudentProgram::create([
                     'student_id' => $student->id,
                     'program_id' => $programId,
+                    'program_major_id' => $programMajorId,
                     'raw_degree_name' => $rawDegree,
                     'admission_semester_id' => null,
                     'status' => 'active',
@@ -366,6 +427,53 @@ class PotentialGraduates extends Page implements HasTable
                     ->whereIn('semester_id', $semIds)
                     ->whereNull('student_program_id')
                     ->update(['student_program_id' => $sp->id]);
+            }
+        }
+
+        // Step 4.5: Re-link enrollments for major-switchers
+        // For students with multiple StudentPrograms, reassign each enrollment
+        // to the SP whose raw_degree_name matches the enrollee record for that term.
+        $semesterLookup = DB::table('semesters')->pluck('term_code', 'id')->toArray();
+        $multiProgramStudents = StudentProgram::select('student_id')
+            ->groupBy('student_id')
+            ->havingRaw('COUNT(*) > 1')
+            ->pluck('student_id');
+
+        foreach ($multiProgramStudents as $studentId) {
+            $student = Student::find($studentId);
+            if (!$student) continue;
+
+            $sps = StudentProgram::where('student_id', $studentId)->get();
+            $spByRawDegree = $sps->keyBy('raw_degree_name');
+            if ($spByRawDegree->keys()->filter()->isEmpty()) continue;
+
+            // Build term_code → raw_degree_name from enrollee data
+            $enrolleeTermToDegree = Enrollee::where('student_number', $student->student_number)
+                ->whereNotNull('degree_program')
+                ->where('degree_program', '!=', '')
+                ->pluck('degree_program', 'term_id')
+                ->toArray();
+
+            $enrollments = StudentEnrollment::where('student_id', $studentId)
+                ->whereNotNull('student_program_id')
+                ->where(function ($q) {
+                    $q->where('source', '!=', 'manual')->orWhereNull('source');
+                })
+                ->get();
+
+            foreach ($enrollments as $enrollment) {
+                $termCode = $semesterLookup[$enrollment->semester_id] ?? null;
+                if (!$termCode) continue;
+
+                $correctDegree = $enrolleeTermToDegree[$termCode] ?? null;
+                if (!$correctDegree) continue;
+
+                $correctSp = $spByRawDegree[$correctDegree] ?? null;
+                if (!$correctSp) continue;
+
+                if ($enrollment->student_program_id !== $correctSp->id) {
+                    $enrollment->update(['student_program_id' => $correctSp->id]);
+                }
             }
         }
 

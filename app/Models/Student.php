@@ -2,15 +2,27 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 class Student extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory, LogsActivity, SoftDeletes;
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logFillable()
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->setDescriptionForEvent(fn(string $eventName) => "Student record {$eventName}");
+    }
 
     protected $fillable = [
         'student_number',
@@ -190,6 +202,16 @@ class Student extends Model
     public function scopeGraduated($query)
     {
         return $query->where('student_status', 'graduated');
+    }
+
+    public function scopeInactive(Builder $query): Builder
+    {
+        return $query->where('student_status', 'inactive');
+    }
+
+    public function scopeCandidate(Builder $query): Builder
+    {
+        return $query->where('student_status', 'candidate');
     }
 
     // ── Helpers ──

@@ -153,12 +153,20 @@ class EnrolleeImport implements ToModel, WithHeadingRow, WithValidation, SkipsOn
             $changeParts[] = "Name normalized: '{$rawLastName}, {$rawFirstName}' → '{$normalizedLastName}, {$normalizedFirstName}'";
         }
 
+        $matcher = \App\Services\ProgramMatcher::instance();
+        $programId = $matcher->match($normalizedProgram);
+        $programMajorId = $programId ? $matcher->matchMajor($programId, $normalizedProgram) : null;
+
         $data = [
             'last_name' => $normalizedLastName,
             'first_name' => $normalizedFirstName,
             'middle_name' => $normalizedMiddleName,
             'degree_program' => $normalizedProgram,
-            'courses_enrolled' => $this->clean($row['courses_enrolled'] ?? $row['coursesenrolled'] ?? $row['courses enrolled'] ?? ''),
+            'program_id' => $programId,
+            'program_major_id' => $programMajorId,
+            'courses_enrolled' => $this->normalizeCourseCodesInText(
+                $this->clean($row['courses_enrolled'] ?? $row['coursesenrolled'] ?? $row['courses enrolled'] ?? '')
+            ),
             'total_units' => $totalUnits,
             'sex' => $this->clean($row['sex'] ?? ''),
             'birthdate' => $birthdate,
@@ -380,11 +388,14 @@ class EnrolleeImport implements ToModel, WithHeadingRow, WithValidation, SkipsOn
         $stripped = $cleanedText;
 
         foreach ($matches as $match) {
-            $courseCode = $match[1] . ' ' . $match[2];
-            $courseCode = $this->courseCodeMap[$courseCode] ?? $courseCode;
+            $rawCode = $match[1] . ' ' . $match[2];
+            $courseCode = $this->courseCodeMap[$rawCode] ?? $rawCode;
             $course = EnrollmentCourse::firstOrCreate(['course_code' => $courseCode]);
             $pivotData = [];
-            if (isset($noteMap[$courseCode])) {
+            // Check noteMap with both original and normalized code
+            if (isset($noteMap[$rawCode])) {
+                $pivotData['notes'] = $noteMap[$rawCode];
+            } elseif (isset($noteMap[$courseCode])) {
                 $pivotData['notes'] = $noteMap[$courseCode];
             }
             $courseIds[$course->id] = $pivotData;
@@ -394,14 +405,17 @@ class EnrolleeImport implements ToModel, WithHeadingRow, WithValidation, SkipsOn
         // 2) Extract standalone uppercase word course codes (e.g. RESIDENCY, THESIS)
         preg_match_all('/\b([A-Z]{2,})\b/', $stripped, $wordMatches, PREG_SET_ORDER);
         foreach ($wordMatches as $wm) {
-            $courseCode = $wm[1];
-            if (in_array($courseCode, ['Units', 'UNITS', 'OR'], true)) {
+            $rawCode = $wm[1];
+            if (in_array($rawCode, ['Units', 'UNITS', 'OR'], true)) {
                 continue;
             }
-            $courseCode = $this->courseCodeMap[$courseCode] ?? $courseCode;
+            $courseCode = $this->courseCodeMap[$rawCode] ?? $rawCode;
             $course = EnrollmentCourse::firstOrCreate(['course_code' => $courseCode]);
             $pivotData = [];
-            if (isset($noteMap[$courseCode])) {
+            // Check noteMap with both original and normalized code
+            if (isset($noteMap[$rawCode])) {
+                $pivotData['notes'] = $noteMap[$rawCode];
+            } elseif (isset($noteMap[$courseCode])) {
                 $pivotData['notes'] = $noteMap[$courseCode];
             }
             $courseIds[$course->id] = $pivotData;
@@ -410,5 +424,24 @@ class EnrolleeImport implements ToModel, WithHeadingRow, WithValidation, SkipsOn
         if (!empty($courseIds)) {
             $enrollee->enrollmentCourses()->sync($courseIds);
         }
+    }
+
+    /**
+     * Apply course code normalization rules to the raw courses_enrolled text.
+     * This ensures the stored text matches the normalized codes in enrollment_courses.
+     */
+    private function normalizeCourseCodesInText(string $text): string
+    {
+        if (empty($text) || empty($this->courseCodeMap)) {
+            return $text;
+        }
+
+        foreach ($this->courseCodeMap as $from => $to) {
+            // Use word-boundary replacement to avoid partial matches
+            $pattern = '/\b' . preg_quote($from, '/') . '\b/';
+            $text = preg_replace($pattern, $to, $text);
+        }
+
+        return $text;
     }
 }

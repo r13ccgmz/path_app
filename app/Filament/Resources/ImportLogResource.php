@@ -20,7 +20,7 @@ class ImportLogResource extends Resource
 
     protected static string | \UnitEnum | null $navigationGroup = 'System';
 
-    protected static ?int $navigationSort = 1;
+    protected static ?int $navigationSort = 8;
 
 
     protected static ?string $navigationLabel = 'Import Logs';

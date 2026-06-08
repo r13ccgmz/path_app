@@ -28,7 +28,7 @@ class StudentEnrollmentsSheet implements FromQuery, WithTitle, WithHeadings, Wit
 
     public function query()
     {
-        return Enrollee::with('term.academicYear')->where('student_number', $this->studentNumber)
+        return Enrollee::with(['term.academicYear', 'program', 'programMajor'])->where('student_number', $this->studentNumber)
             ->orderBy('term_id');
     }
 
@@ -55,7 +55,7 @@ class StudentEnrollmentsSheet implements FromQuery, WithTitle, WithHeadings, Wit
             $this->studentNumber,
             $this->studentName,
             $enrollee->term?->label ?? $enrollee->term_id,
-            $enrollee->degree_program,
+            $enrollee->program_display,
             $enrollee->courses_enrolled,
             strval($units),
             $status,

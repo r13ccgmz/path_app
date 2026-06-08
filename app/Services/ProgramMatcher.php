@@ -89,6 +89,37 @@ class ProgramMatcher
         return $match?->id;
     }
 
+    /**
+     * Match a raw degree program string to a ProgramMajor model ID under a given program.
+     */
+    public function matchMajor(int $programId, ?string $degreeProgram): ?int
+    {
+        if (!$degreeProgram) return null;
+
+        $normalized = $degreeProgram;
+        foreach ($this->normalizationMap as $from => $to) {
+            if (strcasecmp($normalized, $from) === 0) {
+                $normalized = $to;
+                break;
+            }
+        }
+
+        $normalizedComparable = strtolower($this->normalizeAmpersand($normalized));
+
+        // Fetch all majors for this program
+        $majors = \App\Models\ProgramMajor::where('program_id', $programId)->get();
+
+        foreach ($majors as $major) {
+            $majorComparable = strtolower($this->normalizeAmpersand($major->name));
+            // Check if the normalized degree program text contains the major name
+            if (str_contains($normalizedComparable, $majorComparable)) {
+                return $major->id;
+            }
+        }
+
+        return null;
+    }
+
     private function normalizeAmpersand(string $value): string
     {
         return preg_replace('/\s*&\s*/', ' and ', $value);

@@ -72,7 +72,7 @@ trait HasStudentActions
                 ->color('gray')
                 ->modalHeading('Edit Student Information')
                 ->modalWidth('4xl')
-                ->visible(fn () => !empty($this->studentInfo))
+                ->visible(fn () => !empty($this->studentInfo) && !auth()->user()->hasRole('viewer'))
                 ->fillForm(function (): array {
                     $student = $this->getStudentRecord();
                     if (!$student) return [];
@@ -104,6 +104,7 @@ trait HasStudentActions
                         'student_number' => $student->student_number,
                         'registration_adviser_id' => $student->registration_adviser_id,
                         'registration_adviser_appointed_date' => $student->registration_adviser_appointed_date?->format('Y-m-d'),
+                        'program_major_id' => $student->program_major_id,
                         
                         // Committee members
                         'committee_members' => $student->committeeMembers->map(fn($cm) => [
@@ -138,6 +139,7 @@ trait HasStudentActions
                                 ->label('Student Status')
                                 ->options([
                                     'active' => 'Active',
+                                    'candidate' => 'Candidate for Graduation',
                                     'on-leave' => 'On Leave',
                                     'leave-of-absence-approved' => 'Leave of Absence Approved',
                                     'absent-without-official-leave' => 'Absent Without Official Leave',
@@ -240,6 +242,8 @@ trait HasStudentActions
                                 ->placeholder('Select semester...'),
                             Forms\Components\DatePicker::make('admission_date')
                                 ->label('Admission Date'),
+                            \Filament\Schemas\Components\Html::make('<hr class="border-gray-200 dark:border-gray-700 my-2">')->columnSpanFull(),
+                            $this->buildAdviserRow('registration_adviser', 'Registration Adviser'),
                         ])->columns(2),
                     \Filament\Schemas\Components\Section::make('Advisory Committee')
                         ->collapsible()
@@ -254,15 +258,15 @@ trait HasStudentActions
                                         Forms\Components\Select::make('role')
                                             ->label('Role')
                                             ->options([
+                                                'Adviser' => 'Adviser',
+                                                'Co-Adviser' => 'Co-Adviser',
+                                                'Former Adviser' => 'Former Adviser',
                                                 'Chair' => 'Chair',
                                                 'Co-Chair' => 'Co-Chair',
                                                 'Cognate' => 'Cognate',
                                                 'Major' => 'Major',
                                                 'Minor' => 'Minor',
                                                 'Member' => 'Member',
-                                                'Adviser' => 'Adviser',
-                                                'Former Adviser' => 'Former Adviser',
-                                                'Co-Adviser' => 'Co-Adviser',
                                             ])
                                             ->required()
                                             ->columnSpan(1),
@@ -336,6 +340,21 @@ trait HasStudentActions
                         ->success()
                         ->duration(3000)
                         ->send();
+
+                    // Check for advisory conflict
+                    $activeAdviserCount = $student->committeeMembers()
+                        ->where('role', 'Adviser')
+                        ->whereNull('term_end_id')
+                        ->count();
+
+                    if ($activeAdviserCount > 1) {
+                        Notification::make()
+                            ->title('Advisory Conflict: Multiple Primary Advisers')
+                            ->body("This student currently has {$activeAdviserCount} active Primary Advisers. Please update their roles to resolve this tracking conflict.")
+                            ->warning()
+                            ->persistent()
+                            ->send();
+                    }
                 }),
 
             // ── Add Graduate Info (for non-graduates) ──
@@ -345,7 +364,7 @@ trait HasStudentActions
                 ->color('success')
                 ->modalHeading('Add Graduation Information')
                 ->modalWidth('4xl')
-                ->visible(fn () => !empty($this->studentInfo))
+                ->visible(fn () => !empty($this->studentInfo) && !auth()->user()->hasRole('viewer'))
                 ->fillForm(function (): array {
                     // Pre-fill from student's existing data
                     $student = Student::with(['committeeMembers.faculty', 'studentPrograms.program'])->where('student_number', $this->studentNumber)->first();
@@ -360,10 +379,10 @@ trait HasStudentActions
                         'country_of_origin' => $student?->country_of_origin ? ucwords(strtolower($student->country_of_origin)) : '',
                         'committee_data' => collect($student?->committeeMembers ?? [])->map(fn($cm) => [
                             'role' => $cm->role,
-                            'name' => $cm->faculty?->full_name ?? '',
+                            'faculty_id' => $cm->faculty_id,
                             'appointed_date' => $cm->appointed_date?->format('Y-m-d'),
-                            'term_start' => $cm->termStart?->term_code ?? null,
-                            'term_end' => $cm->termEnd?->term_code ?? null,
+                            'term_start' => $cm->term_start_id ?? null,
+                            'term_end' => $cm->term_end_id ?? null,
                         ])->toArray(),
                     ];
                 })
@@ -454,33 +473,46 @@ trait HasStudentActions
                                 ->searchable(),
                         ])->columns(2),
                     \Filament\Schemas\Components\Section::make('Advisory Committee')
+                        ->collapsible()
+                        ->collapsed()
                         ->schema([
                             Forms\Components\Repeater::make('committee_data')
                                 ->label('Committee Members')
                                 ->hiddenLabel()
                                 ->schema([
-                                    Forms\Components\Select::make('role')
-                                        ->label('Role')
-                                        ->options([
-                                            'Chair' => 'Chair',
-                                            'Co-Chair' => 'Co-Chair',
-                                            'Cognate' => 'Cognate',
-                                            'Major' => 'Major',
-                                            'Minor' => 'Minor',
-                                            'Member' => 'Member',
-                                            'Adviser' => 'Adviser',
-                                            'Co-Adviser' => 'Co-Adviser',
-                                        ])
-                                        ->required(),
-                                    $this->buildFacultyNameSelect('name', 'Faculty Name')->required(),
-                                    Forms\Components\DatePicker::make('appointed_date')
-                                        ->label('Date Appointed'),
-                                    $this->buildTermSelect('term_start', 'Term Start')
-                                        ->dehydrated(true),
-                                    $this->buildTermSelect('term_end', 'Term End')
-                                        ->dehydrated(true),
+                                    \Filament\Schemas\Components\Group::make([
+                                        Forms\Components\Select::make('role')
+                                            ->label('Role')
+                                            ->options([
+                                                'Adviser' => 'Adviser',
+                                                'Co-Adviser' => 'Co-Adviser',
+                                                'Former Adviser' => 'Former Adviser',
+                                                'Chair' => 'Chair',
+                                                'Co-Chair' => 'Co-Chair',
+                                                'Cognate' => 'Cognate',
+                                                'Major' => 'Major',
+                                                'Minor' => 'Minor',
+                                                'Member' => 'Member',
+                                            ])
+                                            ->required()
+                                            ->columnSpan(1),
+                                        $this->buildFacultyIdSelect('faculty_id', 'Faculty Name')
+                                            ->required()
+                                            ->columnSpan(2),
+                                        Forms\Components\DatePicker::make('appointed_date')
+                                            ->label('Date Appointed')
+                                            ->columnSpan(1),
+                                    ])->columns(4),
+                                    \Filament\Schemas\Components\Group::make([
+                                        $this->buildTermSelect('term_start', 'Term Start')
+                                            ->dehydrated(true)
+                                            ->columnSpan(1),
+                                        $this->buildTermSelect('term_end', 'Term End')
+                                            ->dehydrated(true)
+                                            ->columnSpan(1),
+                                    ])->columns(2),
                                 ])
-                                ->columns(5)
+                                ->columns(1)
                                 ->columnSpanFull()
                                 ->addActionLabel('Add Committee Member')
                                 ->reorderable(false),
@@ -497,14 +529,19 @@ trait HasStudentActions
                     $data['member5'] = '';
                     $mCount = 1;
                     foreach($committeeData as $member) {
-                        $role = strtolower($member['role'] ?? '');
-                        if (str_contains($role, 'chair') && !str_contains($role, 'co-chair') && !$data['chair']) {
-                            $data['chair'] = $member['name'] ?? '';
-                        } elseif (str_contains($role, 'co-chair') && !$data['co_chair']) {
-                            $data['co_chair'] = $member['name'] ?? '';
+                        $facultyId = $member['faculty_id'] ?? null;
+                        $faculty = $facultyId ? \App\Models\Faculty::find($facultyId) : null;
+                        $memberName = $faculty ? $faculty->full_name : '';
+                        $role = $member['role'] ?? 'Member';
+
+                        $roleLower = strtolower($role);
+                        if (str_contains($roleLower, 'chair') && !str_contains($roleLower, 'co-chair') && !$data['chair']) {
+                            $data['chair'] = $memberName;
+                        } elseif (str_contains($roleLower, 'co-chair') && !$data['co_chair']) {
+                            $data['co_chair'] = $memberName;
                         } else {
                             if ($mCount <= 5) {
-                                $data["member{$mCount}"] = $member['name'] ?? '';
+                                $data["member{$mCount}"] = $memberName;
                                 $mCount++;
                             }
                         }
@@ -514,7 +551,27 @@ trait HasStudentActions
                     $data['name'] = $this->studentInfo['name'] ?? '';
                     $data['match_type'] = 'manual';
                     $data['source'] = 'manual';
-                    Graduate::create($data);
+                    
+                    unset($data['committee_data']);
+                    $graduate = Graduate::create($data);
+
+                    // Sync to normalized graduate_committee_members table
+                    foreach($committeeData as $member) {
+                        $facultyId = $member['faculty_id'] ?? null;
+                        if ($facultyId) {
+                            $faculty = \App\Models\Faculty::find($facultyId);
+                            \App\Models\GraduateCommitteeMember::create([
+                                'graduate_id' => $graduate->id,
+                                'faculty_id' => $facultyId,
+                                'name' => $faculty ? $faculty->full_name : '',
+                                'role' => $member['role'] ?? 'Member',
+                                'match_type' => 'manual',
+                                'appointed_date' => $member['appointed_date'] ?? null,
+                                'term_start_id' => $member['term_start'] ?? null,
+                                'term_end_id' => $member['term_end'] ?? null,
+                            ]);
+                        }
+                    }
 
                     // Sync core student record
                     $student = $this->getStudentRecord();
@@ -549,7 +606,7 @@ trait HasStudentActions
                 ->modalDescription('Select one or more courses and a term. Manual entries will be flagged separately from official GS data.')
                 ->modalWidth('lg')
                 ->modalSubmitActionLabel('Add')
-                ->visible(fn () => !empty($this->studentInfo))
+                ->visible(fn () => !empty($this->studentInfo) && !auth()->user()->hasRole('viewer'))
                 ->form([
                     \Filament\Forms\Components\Select::make('enrollment_status')
                         ->label('Enrollment Status')
@@ -646,7 +703,19 @@ trait HasStudentActions
                                 ->searchable()
                                 ->preload()
                                 ->required()
+                                ->live()
                                 ->placeholder('Select a program...'),
+                            \Filament\Forms\Components\Select::make('program_major_id')
+                                ->label('Specialization / Major')
+                                ->options(function (callable $get) {
+                                    $programId = $get('program_id');
+                                    if (!$programId) return [];
+                                    return \App\Models\ProgramMajor::where('program_id', $programId)
+                                        ->orderBy('name')->pluck('name', 'id')->toArray();
+                                })
+                                ->searchable()
+                                ->placeholder('Select specialization...')
+                                ->nullable(),
                         ])
                         ->createOptionUsing(function (array $data): string {
                             $student = $this->getStudentRecord();
@@ -655,6 +724,7 @@ trait HasStudentActions
                                 [
                                     'student_id' => $student->id,
                                     'program_id' => $data['program_id'],
+                                    'program_major_id' => $data['program_major_id'] ?? null,
                                 ],
                                 [
                                     'status' => 'active',
@@ -755,17 +825,29 @@ trait HasStudentActions
                             }
                         } else {
                             $baseEnrollee = Enrollee::where('student_number', $student->student_number)->latest('term_id')->first();
-                            $sp = \App\Models\StudentProgram::with('program')->find($studentProgramId);
+                            $sp = \App\Models\StudentProgram::with(['program', 'programMajor'])->find($studentProgramId);
 
                             $lastName = $baseEnrollee?->last_name ?? $student->surname ?? 'Unknown';
                             $firstName = $baseEnrollee?->first_name ?? $student->given_name ?? 'Unknown';
+
+                            $degProgName = null;
+                            if ($sp?->program) {
+                                $degProgName = $sp->program->name;
+                                if ($sp->programMajor) {
+                                    $degProgName .= ' in ' . $sp->programMajor->name;
+                                }
+                            } else {
+                                $degProgName = $baseEnrollee?->degree_program;
+                            }
 
                             $enrollee = Enrollee::create([
                                 'term_id' => $data['term_code'],
                                 'student_number' => $student->student_number,
                                 'last_name' => $lastName,
                                 'first_name' => $firstName,
-                                'degree_program' => $sp?->program?->name ?? $baseEnrollee?->degree_program,
+                                'degree_program' => $degProgName,
+                                'program_id' => $sp?->program_id ?? $baseEnrollee?->program_id,
+                                'program_major_id' => $sp?->program_major_id ?? $baseEnrollee?->program_major_id,
                                 'courses_enrolled' => implode(', ', $addedCodes),
                                 'total_units' => $totalUnitsAdded,
                                 'source' => 'manual',
@@ -834,7 +916,7 @@ trait HasStudentActions
                 ->modalHeading(fn () => $this->editingAoId ? 'Edit Academic Output' : 'Add Academic Output')
                 ->modalWidth('3xl')
                 ->modalSubmitActionLabel(fn () => $this->editingAoId ? 'Update' : 'Add')
-                ->visible(fn () => !empty($this->studentInfo))
+                ->visible(fn () => !empty($this->studentInfo) && !auth()->user()->hasRole('viewer'))
                 ->mountUsing(function ($form, array $arguments) {
                     if (empty($arguments)) {
                         $this->editingAoId = null;
@@ -1017,15 +1099,15 @@ trait HasStudentActions
                                         Forms\Components\Select::make('role')
                                             ->label('Role')
                                             ->options([
+                                                'Adviser' => 'Adviser',
+                                                'Co-Adviser' => 'Co-Adviser',
+                                                'Former Adviser' => 'Former Adviser',
                                                 'Chair' => 'Chair',
                                                 'Co-Chair' => 'Co-Chair',
                                                 'Cognate' => 'Cognate',
                                                 'Major' => 'Major',
                                                 'Minor' => 'Minor',
                                                 'Member' => 'Member',
-                                                'Adviser' => 'Adviser',
-                                                'Former Adviser' => 'Former Adviser',
-                                                'Co-Adviser' => 'Co-Adviser',
                                             ])
                                             ->required()
                                             ->columnSpan(1),
@@ -1151,7 +1233,8 @@ trait HasStudentActions
                         $this->backToList();
                     }
                 }),
-            ])->label('Manage Student')->button()->icon('heroicon-m-pencil-square'),
+            ])->label('Manage Student')->button()->icon('heroicon-m-pencil-square')
+                ->visible(fn () => !empty($this->studentInfo) && !auth()->user()->hasRole('viewer')),
 
             // ── Edit Graduate Info ──
             // Standalone action (outside dropdown) — mounted via blade Edit button on graduation card
@@ -1161,7 +1244,7 @@ trait HasStudentActions
                 ->icon('heroicon-o-pencil-square')
                 ->color('warning')
                 ->extraAttributes(['class' => 'hidden'])
-                ->visible(fn () => !empty($this->editingGraduateId))
+                ->visible(fn () => !empty($this->editingGraduateId) && !auth()->user()->hasRole('viewer'))
                 ->modalHeading('Edit Graduation Information')
                 ->modalWidth('4xl')
                 ->fillForm(function (): array {
@@ -1361,15 +1444,15 @@ trait HasStudentActions
                                         Forms\Components\Select::make('role')
                                             ->label('Role')
                                             ->options([
+                                                'Adviser' => 'Adviser',
+                                                'Co-Adviser' => 'Co-Adviser',
+                                                'Former Adviser' => 'Former Adviser',
                                                 'Chair' => 'Chair',
                                                 'Co-Chair' => 'Co-Chair',
                                                 'Cognate' => 'Cognate',
                                                 'Major' => 'Major',
                                                 'Minor' => 'Minor',
                                                 'Member' => 'Member',
-                                                'Adviser' => 'Adviser',
-                                                'Former Adviser' => 'Former Adviser',
-                                                'Co-Adviser' => 'Co-Adviser',
                                             ])
                                             ->required()
                                             ->columnSpan(1),
@@ -1470,7 +1553,7 @@ trait HasStudentActions
                 ->icon('heroicon-o-trash')
                 ->color('danger')
                 ->extraAttributes(['class' => 'hidden'])
-                ->visible(fn () => !empty($this->editingGraduateId))
+                ->visible(fn () => !empty($this->editingGraduateId) && !auth()->user()->hasRole('viewer'))
                 ->modalHeading('Remove Graduation Information')
                 ->modalDescription('This will permanently remove the graduation record linked to this student. The student will appear as a non-graduate. This action cannot be undone.')
                 ->requiresConfirmation()

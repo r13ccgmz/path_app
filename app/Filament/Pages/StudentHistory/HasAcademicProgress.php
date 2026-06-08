@@ -96,14 +96,22 @@ trait HasAcademicProgress
 
 
     /**
-     * Auto-populate student_programs if none exist for this student.
-     * Uses ProgramMatcher to detect programs from enrollee history.
+     * Additively populate student_programs from enrollee history.
+     * Detects new program+major combinations from enrollee data and creates
+     * missing StudentProgram records. Supports students who switch majors
+     * within the same program (e.g., MPAf in Education Management → MPAf in
+     * Strategic Planning and Public Policy).
+     *
+     * Also backfills program_major_id on existing records and links orphaned enrollments.
      */
     private function ensureStudentPrograms(Student $student): void
     {
-        if ($student->studentPrograms()->count() > 0) return;
-
         $matcher = \App\Services\ProgramMatcher::instance();
+
+        // Collect existing (program_id, program_major_id) pairs to avoid duplicates
+        $existingPairs = $student->studentPrograms()->get(['program_id', 'program_major_id'])
+            ->map(fn ($sp) => $sp->program_id . ':' . ($sp->program_major_id ?? 'null'))
+            ->toArray();
 
         $enrolleeRecords = Enrollee::where('student_number', $student->student_number)
             ->whereNotNull('degree_program')
@@ -112,32 +120,50 @@ trait HasAcademicProgress
             ->get();
 
         $byProgram = $enrolleeRecords->groupBy('degree_program');
-        $seenProgramIds = [];
+        $seenPairs = $existingPairs; // Start with existing to avoid duplicates
+        $newlyCreated = [];
 
         foreach ($byProgram as $rawDegree => $enrollments) {
             $programId = $matcher->match($rawDegree);
-            if (!$programId || in_array($programId, $seenProgramIds)) continue;
-            $seenProgramIds[] = $programId;
+            if (!$programId) continue;
+
+            $programMajorId = $matcher->matchMajor($programId, $rawDegree);
+            $pairKey = $programId . ':' . ($programMajorId ?? 'null');
+
+            if (in_array($pairKey, $seenPairs)) continue;
+            $seenPairs[] = $pairKey;
 
             $termIds = $enrollments->pluck('term_id')->unique()->sort()->values();
-            $firstTermId = $termIds->first();
-            $admissionSemester = \App\Models\Semester::where('term_code', $firstTermId)->first();
 
             $residencyTerms = $enrollments->filter(function ($e) {
                 return str_contains(strtoupper($e->courses_enrolled ?? ''), 'RESID');
             })->pluck('term_id')->unique()->count();
 
-            $sp = \App\Models\StudentProgram::create([
-                'student_id' => $student->id,
-                'program_id' => $programId,
-                'raw_degree_name' => $rawDegree,
-                'admission_semester_id' => null,
-                'admission_date' => null,
-                'status' => 'active',
-                'residency_enrolled' => $residencyTerms,
-            ]);
+            try {
+                $sp = \App\Models\StudentProgram::create([
+                    'student_id' => $student->id,
+                    'program_id' => $programId,
+                    'program_major_id' => $programMajorId,
+                    'raw_degree_name' => $rawDegree,
+                    'admission_semester_id' => null,
+                    'admission_date' => null,
+                    'status' => 'active',
+                    'residency_enrolled' => $residencyTerms,
+                ]);
+                $newlyCreated[] = ['sp' => $sp, 'termIds' => $termIds];
+            } catch (\Illuminate\Database\QueryException $e) {
+                // Skip duplicates (unique constraint on student_id + program_id + program_major_id)
+                if (str_contains($e->getMessage(), 'Duplicate entry')) {
+                    continue;
+                }
+                throw $e;
+            }
+        }
 
-            // Link enrollments to this student_program
+        // Link orphaned enrollments to newly created student_programs
+        foreach ($newlyCreated as $item) {
+            $sp = $item['sp'];
+            $termIds = $item['termIds'];
             $semesterIds = \App\Models\Semester::whereIn('term_code', $termIds->toArray())
                 ->pluck('id')->toArray();
             if (!empty($semesterIds)) {
@@ -145,6 +171,123 @@ trait HasAcademicProgress
                     ->whereIn('semester_id', $semesterIds)
                     ->whereNull('student_program_id')
                     ->update(['student_program_id' => $sp->id]);
+            }
+        }
+
+        // Also backfill program_major_id on existing StudentProgram records that are missing it
+        $existingPrograms = $student->studentPrograms()->whereNull('program_major_id')->get();
+        foreach ($existingPrograms as $sp) {
+            if ($sp->raw_degree_name) {
+                $majorId = $matcher->matchMajor($sp->program_id, $sp->raw_degree_name);
+                if ($majorId) {
+                    $sp->update(['program_major_id' => $majorId]);
+                }
+            }
+        }
+
+        // Backfill student_program_id on any remaining orphaned enrollments
+        $orphanedEnrollments = StudentEnrollment::where('student_id', $student->id)
+            ->whereNull('student_program_id')
+            ->get();
+        if ($orphanedEnrollments->isNotEmpty()) {
+            // Build a lookup keyed by raw_degree_name for precise matching
+            $student->load('studentPrograms');
+            $spByRawDegree = $student->studentPrograms->keyBy('raw_degree_name');
+            $semesterLookup = \Illuminate\Support\Facades\DB::table('semesters')->pluck('term_code', 'id')->toArray();
+
+            foreach ($orphanedEnrollments as $enrollment) {
+                $termCode = $semesterLookup[$enrollment->semester_id] ?? null;
+                if (!$termCode) continue;
+
+                // Find the enrollee record for this term to get the degree_program
+                $enrollee = Enrollee::where('student_number', $student->student_number)
+                    ->where('term_id', $termCode)
+                    ->first();
+                if ($enrollee && $enrollee->degree_program && isset($spByRawDegree[$enrollee->degree_program])) {
+                    $enrollment->update(['student_program_id' => $spByRawDegree[$enrollee->degree_program]->id]);
+                }
+            }
+
+            // Single-program fallback: if orphans still remain and student has exactly 1 program,
+            // assign all remaining orphans to that single program
+            $remainingOrphans = StudentEnrollment::where('student_id', $student->id)
+                ->whereNull('student_program_id')
+                ->count();
+            if ($remainingOrphans > 0) {
+                $allSps = $student->studentPrograms;
+                if ($allSps->count() === 1) {
+                    StudentEnrollment::where('student_id', $student->id)
+                        ->whereNull('student_program_id')
+                        ->update(['student_program_id' => $allSps->first()->id]);
+                }
+            }
+        }
+
+        // Re-link existing enrollments that may be assigned to the wrong student_program
+        // (e.g., major-switchers whose enrollments were all linked to the first SP)
+        $this->relinkEnrollmentsToCorrectPrograms($student);
+    }
+
+
+    /**
+     * Re-link existing student_enrollments to the correct StudentProgram
+     * based on which raw_degree_name was active in each semester.
+     *
+     * This handles the case where a student switched majors within the same
+     * program (e.g., MPAf Education Management → MPAf Strategic Planning).
+     * Before the multi-major schema change, all enrollments were linked to
+     * the single StudentProgram. Now we reassign each enrollment to the SP
+     * whose raw_degree_name matches the enrollee record for that semester.
+     *
+     * Safe and idempotent — only modifies enrollments whose current
+     * student_program_id doesn't match the correct SP for that term.
+     */
+    public function relinkEnrollmentsToCorrectPrograms(Student $student): void
+    {
+        $student->load('studentPrograms');
+        $sps = $student->studentPrograms;
+
+        // Only relevant when a student has multiple programs
+        if ($sps->count() <= 1) return;
+
+        // Build lookup: raw_degree_name → StudentProgram
+        $spByRawDegree = $sps->keyBy('raw_degree_name');
+
+        // If no raw_degree_name data, nothing to re-link
+        if ($spByRawDegree->keys()->filter()->isEmpty()) return;
+
+        // Build semester_id → term_code lookup
+        $semesterLookup = DB::table('semesters')->pluck('term_code', 'id')->toArray();
+
+        // Build term_code → raw_degree_name lookup from enrollee data
+        $enrolleeTermToDegree = Enrollee::where('student_number', $student->student_number)
+            ->whereNotNull('degree_program')
+            ->where('degree_program', '!=', '')
+            ->pluck('degree_program', 'term_id')
+            ->toArray();
+
+        // Get all imported enrollments that have a student_program_id
+        // (skip manual ones — those were intentionally placed by the user)
+        $enrollments = StudentEnrollment::where('student_id', $student->id)
+            ->whereNotNull('student_program_id')
+            ->where(function ($q) {
+                $q->where('source', '!=', 'manual')->orWhereNull('source');
+            })
+            ->get();
+
+        foreach ($enrollments as $enrollment) {
+            $termCode = $semesterLookup[$enrollment->semester_id] ?? null;
+            if (!$termCode) continue;
+
+            $correctDegree = $enrolleeTermToDegree[$termCode] ?? null;
+            if (!$correctDegree) continue;
+
+            $correctSp = $spByRawDegree[$correctDegree] ?? null;
+            if (!$correctSp) continue;
+
+            // Only update if currently assigned to the wrong SP
+            if ($enrollment->student_program_id !== $correctSp->id) {
+                $enrollment->update(['student_program_id' => $correctSp->id]);
             }
         }
     }
@@ -160,10 +303,12 @@ trait HasAcademicProgress
         $curriculumQuery = ProgramCourse::with(['course', 'programMajor'])
             ->where('program_id', $program->id);
 
-        if ($student->program_major_id) {
-            $curriculumQuery->where(function ($q) use ($student) {
+        // Use the per-program major (from student_programs), not the student's global major
+        $majorId = $sp->program_major_id;
+        if ($majorId) {
+            $curriculumQuery->where(function ($q) use ($majorId) {
                 $q->whereNull('program_major_id')
-                  ->orWhere('program_major_id', $student->program_major_id);
+                  ->orWhere('program_major_id', $majorId);
             });
         }
 
@@ -172,8 +317,8 @@ trait HasAcademicProgress
         // Deduplicate
         $deduped = collect();
         $seenCourseIds = [];
-        foreach ($curriculum->sortBy(function ($pc) use ($student) {
-            if ($pc->program_major_id === $student->program_major_id) return 0;
+        foreach ($curriculum->sortBy(function ($pc) use ($majorId) {
+            if ($pc->program_major_id === $majorId) return 0;
             if ($pc->program_major_id === null) return 1;
             return 2;
         }) as $mapping) {
@@ -360,7 +505,7 @@ trait HasAcademicProgress
         }
 
         // Total progress
-        $totalRequired = $program->total_units_override ?? $program->total_units_required;
+        $totalRequired = $program->total_units_required;
         $totalEarned = array_sum(array_column($typeProgress, 'earned_units'));
 
         // GWA Calculation — only for this program's curriculum courses
@@ -756,7 +901,7 @@ trait HasAcademicProgress
             ->toArray();
 
         // Compute total progress
-        $totalRequired = $program->total_units_override ?? $program->total_units_required;
+        $totalRequired = $program->total_units_required;
         $totalEarned = array_sum(array_column($typeProgress, 'earned_units'));
 
         // ── GWA Calculation ──

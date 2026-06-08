@@ -2,8 +2,6 @@
 
 namespace App\Filament\Resources\Courses;
 
-use App\Filament\Resources\Courses\Pages\CreateCourse;
-use App\Filament\Resources\Courses\Pages\EditCourse;
 use App\Filament\Resources\Courses\Pages\ListCourses;
 use App\Filament\Resources\Courses\Schemas\CourseForm;
 use App\Filament\Resources\Courses\Tables\CoursesTable;
@@ -38,17 +36,13 @@ class CourseResource extends Resource
 
     public static function getRelations(): array
     {
-        return [
-            RelationManagers\ProgramCoursesRelationManager::class,
-        ];
+        return [];
     }
 
     public static function getPages(): array
     {
         return [
             'index' => ListCourses::route('/'),
-            'create' => CreateCourse::route('/create'),
-            'edit' => EditCourse::route('/{record}/edit'),
         ];
     }
 }

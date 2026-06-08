@@ -17,17 +17,32 @@
         /* Header */
         .pdf-header {
             text-align: center;
-            margin-bottom: 16px;
-            padding-bottom: 10px;
-            border-bottom: 2px solid #1A5C38;
+            border-bottom: 2px solid #1e40af;
+            padding-bottom: 14px;
+            margin-bottom: 20px;
+        }
+        .header-logo {
+            width: 280px;
+            height: auto;
+            margin: 0 auto 10px auto;
+            display: block;
         }
         .pdf-header h1 {
-            font-size: 14pt;
-            color: #1A5C38;
+            font-size: 12pt;
+            font-weight: 700;
+            color: #1e40af;
+            letter-spacing: 0.8px;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+        .pdf-header h2 {
+            font-size: 10pt;
+            font-weight: 600;
+            color: #334155;
             margin-bottom: 2px;
         }
         .pdf-header .subtitle {
-            font-size: 10pt;
+            font-size: 9pt;
             color: #6b7280;
         }
         .pdf-header .meta {
@@ -153,7 +168,7 @@
         }
         .course-code {
             font-weight: bold;
-            white-space: nowrap;
+            word-wrap: break-word;
         }
         .spec-group {
             font-size: 7.5pt;
@@ -204,9 +219,11 @@
 <body>
     <!-- Header -->
     <div class="pdf-header">
-        <h1>{{ $program->name }}</h1>
-        <div class="subtitle">{{ $program->code }} · {{ $program->degree_level?->label() ?? 'N/A' }}</div>
-        <div class="meta">Curriculum Map · Generated {{ now()->format('F j, Y') }}</div>
+        <img src="data:image/png;base64,{{ base64_encode(file_get_contents(public_path('images/sidebar-branding-light-mode.png'))) }}" class="header-logo" alt="CPAf Logo">
+        <h1>Institute for Governance and Rural Development (IGRD)</h1>
+        <h2>Curriculum Map</h2>
+        <div class="subtitle">{{ $program->name }} · {{ $program->code }} · {{ $program->degree_level?->label() ?? 'N/A' }}</div>
+        <div class="meta">Generated on {{ now()->timezone('Asia/Manila')->format('F j, Y — g:i A \P\H\T') }}</div>
     </div>
 
     <!-- Unit Requirements Summary -->
@@ -348,7 +365,7 @@
 
     <!-- Footer -->
     <div class="pdf-footer">
-        PATH — Progress and Academic Tracking Hub · {{ $program->code }} Curriculum Map
+        This document was generated from PATH — Progress and Academic Tracking Hub. &bull; {{ $program->code }} Curriculum Map
     </div>
 
     <script type="text/php">

@@ -5,9 +5,13 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 class Course extends Model
 {
+    use LogsActivity;
+
     protected $fillable = [
         'course_code',
         'course_name',
@@ -21,12 +25,23 @@ class Course extends Model
         ];
     }
 
+    // ── Activity Log ──
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logFillable()
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->setDescriptionForEvent(fn(string $eventName) => "Course record {$eventName}");
+    }
+
     // ── Relationships ──
 
     public function programs(): BelongsToMany
     {
         return $this->belongsToMany(Program::class, 'program_courses')
-            ->withPivot('program_major_id', 'cognate_field_id', 'course_type', 'semester_offered', 'applies_to_all_majors', 'year_level', 'semester_recommended', 'is_required', 'description', 'units', 'lecture_hours', 'lab_hours', 'prerequisite_text', 'notes')
+            ->withPivot('program_major_id', 'cognate_field_id', 'course_type', 'semester_offered', 'applies_to_all_majors', 'semester_recommended', 'is_required', 'description', 'units', 'lecture_hours', 'lab_hours', 'prerequisite_text', 'notes')
             ->withTimestamps();
     }
 
